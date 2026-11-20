@@ -368,6 +368,10 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                         const SizedBox(width: 8),
                         if (hasRazorpay)
                           _chip('Configured', Colors.green.shade50, Colors.green.shade800),
+                        if (hasRazorpay && razorpayMethod.isPreferred) ...[
+                          const SizedBox(width: 8),
+                          _chip('Preferred', Colors.blue.shade50, Colors.blue.shade800),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -444,6 +448,64 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               ),
             ],
           ),
+          if (hasRazorpay) ...[
+            const SizedBox(height: 10),
+            Divider(height: 1, color: Colors.grey.shade200),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  if (!razorpayMethod.isPreferred)
+                    TextButton.icon(
+                      icon: const Icon(Icons.star_outline),
+                      label: const Text('Make Preferred'),
+                      onPressed: () async {
+                        await viewModel.setPreferredPaymentMethod(widget.businessId, razorpayMethod.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Razorpay marked as preferred payment method'),
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  else
+                    TextButton.icon(
+                      icon: const Icon(Icons.star, color: Colors.amber),
+                      label: const Text('Preferred (Default)', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                      onPressed: null,
+                    ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Text(
+                        razorpayMethod.isActive ? 'Active' : 'Disabled',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Switch(
+                        value: razorpayMethod.isActive,
+                        onChanged: (value) async {
+                          await viewModel.togglePaymentMethodStatus(razorpayMethod, value);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  value
+                                      ? 'Razorpay enabled'
+                                      : 'Razorpay disabled',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

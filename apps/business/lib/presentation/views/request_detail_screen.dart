@@ -1149,6 +1149,12 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
             'accountHolderName': selectedMethod['accountHolderName'],
             'paymentMethodId': _selectedPaymentMethodId,
           };
+        } else if (methodType == 'razorpay') {
+          paymentMode = 'razorpay';
+          paymentInfo = {
+            'paymentMethodId': _selectedPaymentMethodId,
+            'gateway': 'razorpay',
+          };
         } else {
           paymentMode = 'cash';
           paymentInfo = {'paymentMethodId': _selectedPaymentMethodId};
@@ -1781,6 +1787,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                                   : 'Bank Account';
                               subtitle = '****$lastFour';
                               icon = Icons.account_balance;
+                            } else if (type == 'razorpay') {
+                              label = 'Razorpay Online';
+                              subtitle = 'UPI, Cards, Netbanking (Auto-verified)';
+                              icon = Icons.credit_card;
                             } else {
                               label = 'Cash';
                               subtitle = 'Manual collection';
