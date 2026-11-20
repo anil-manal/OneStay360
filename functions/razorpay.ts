@@ -403,8 +403,11 @@ export const createPaymentLink = functions
     const credentials = await getBusinessRazorpayCredentials(businessId);
     const keyIdHint = credentials.keyId ? `${credentials.keyId.slice(0, 6)}...${credentials.keyId.slice(-4)}` : 'unknown';
 
-    // ── Convenience Fee Setting (Defaults to passing ~2% to tenant) ──
-    const passConvenienceFee = config.passConvenienceFeeToTenant !== false;
+    // ── Convenience Fee / Surcharging Configuration ──
+    // 'razorpay_native' (Recommended): Sends exact base rent (0% upfront). Razorpay charges 0% for UPI and adds 2% on Cards.
+    // 'fixed_markup': Adds 2% upfront to payment link.
+    const surchargingMode = config.surchargingMode || 'razorpay_native';
+    const passFixedFee = config.passConvenienceFeeToTenant === true && surchargingMode === 'fixed_markup';
     const feePercent = typeof config.convenienceFeePercent === 'number' ? config.convenienceFeePercent : 2.0;
 
     // ── Enrollment Request Flow ──
@@ -433,14 +436,14 @@ export const createPaymentLink = functions
         throw new functions.https.HttpsError('invalid-argument', 'Invalid bill amount');
       }
 
-      const convenienceFee = passConvenienceFee ? Math.round(baseBillAmount * (feePercent / 100)) : 0;
+      const convenienceFee = passFixedFee ? Math.round(baseBillAmount * (feePercent / 100)) : 0;
       const totalAmountToCollect = baseBillAmount + convenienceFee;
       const amountInPaise = Math.round(totalAmountToCollect * 100);
 
       const linkPayload = {
         amount: amountInPaise,
         currency: 'INR',
-        description: `Move-in Bill - ${enrollment.propertyName || 'PG'}${convenienceFee > 0 ? ` (incl ₹${convenienceFee} fee)` : ''}`,
+        description: `Move-in Bill - ${enrollment.propertyName || 'PG Reservation'}${convenienceFee > 0 ? ` (incl ₹${convenienceFee} fee)` : ''}`,
         customer: {
           name: enrollment.tenantName || 'Tenant',
           contact: enrollment.tenantPhone || undefined,
@@ -457,6 +460,7 @@ export const createPaymentLink = functions
           tenantId: enrollment.tenantId || tenantId || '',
           baseBillAmount: String(baseBillAmount),
           convenienceFee: String(convenienceFee),
+          surchargingMode,
           type: 'enrollment',
         },
         callback_url: '',
@@ -474,7 +478,7 @@ export const createPaymentLink = functions
         baseBillAmount,
         convenienceFee,
         totalAmountPaid: totalAmountToCollect,
-        convenienceFeePassedToTenant: passConvenienceFee,
+        surchargingMode,
         razorpayKeyIdHint: keyIdHint,
         updatedAt: admin.firestore.Timestamp.now(),
       });
@@ -486,6 +490,7 @@ export const createPaymentLink = functions
         baseBillAmount,
         convenienceFee,
         totalAmountToCollect,
+        surchargingMode,
         keyIdHint,
       });
 
@@ -495,6 +500,7 @@ export const createPaymentLink = functions
         baseAmount: baseBillAmount,
         convenienceFee,
         totalAmount: totalAmountToCollect,
+        surchargingMode,
         alreadyCreated: false,
       };
     }
@@ -527,7 +533,7 @@ export const createPaymentLink = functions
     const tenantData = tenantSnap.exists ? (tenantSnap.data() as any) : {};
 
     const baseRentAmount = Number(invoice.amount || 0);
-    const convenienceFee = passConvenienceFee ? Math.round(baseRentAmount * (feePercent / 100)) : 0;
+    const convenienceFee = passFixedFee ? Math.round(baseRentAmount * (feePercent / 100)) : 0;
     const totalAmountToCollect = baseRentAmount + convenienceFee;
     const amountInPaise = Math.round(totalAmountToCollect * 100);
 
@@ -553,6 +559,7 @@ export const createPaymentLink = functions
         periodMonth: invoice.periodMonth || '',
         baseRentAmount: String(baseRentAmount),
         convenienceFee: String(convenienceFee),
+        surchargingMode,
       },
       callback_url: '', // Deep link back to app (set if needed)
       callback_method: 'get',
@@ -570,7 +577,7 @@ export const createPaymentLink = functions
       baseRentAmount,
       convenienceFee,
       totalAmountPaid: totalAmountToCollect,
-      convenienceFeePassedToTenant: passConvenienceFee,
+      surchargingMode,
       razorpayKeyIdHint: keyIdHint,
       updatedAt: admin.firestore.Timestamp.now(),
     });
@@ -583,6 +590,7 @@ export const createPaymentLink = functions
       baseRentAmount,
       convenienceFee,
       totalAmountToCollect,
+      surchargingMode,
       keyIdHint,
     });
 
@@ -592,6 +600,7 @@ export const createPaymentLink = functions
       baseAmount: baseRentAmount,
       convenienceFee,
       totalAmount: totalAmountToCollect,
+      surchargingMode,
       alreadyCreated: false,
     };
   });

@@ -418,40 +418,51 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                   ),
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF10b981).withAlpha(60)),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF10b981).withAlpha(80)),
                     ),
                     child: Column(
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Bill Amount', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            Text('₹${totalAmount.toInt()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Online Processing Fee (~2%)', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            const Text(
+                              'Bill Amount',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+                            ),
                             Text(
-                              '+ ₹${(totalAmount * 0.02).round()}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey),
+                              '₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF065f46)),
                             ),
                           ],
                         ),
-                        const Divider(height: 12),
+                        const SizedBox(height: 8),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Total Payable', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF065f46))),
-                            Text(
-                              '₹${(totalAmount + (totalAmount * 0.02).round()).toInt()}',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF065f46)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '0% FEE',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Free on UPI (GPay, PhonePe). Cards subject to ~2% fee on checkout.',
+                                style: TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
                             ),
                           ],
                         ),
@@ -480,7 +491,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                       label: Text(
                         _isGeneratingLink
                             ? 'Opening Razorpay...'
-                            : 'Pay ₹${(totalAmount + (totalAmount * 0.02).round()).toInt()} Securely',
+                            : 'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} Securely',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),

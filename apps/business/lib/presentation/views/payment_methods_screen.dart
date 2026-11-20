@@ -507,7 +507,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             ),
             const SizedBox(height: 10),
             Divider(height: 1, color: Colors.grey.shade200),
-            // Convenience Fee Toggle
+            // Dynamic Customer Surcharge Card (UPI: 0%, Cards: 2%)
             FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               future: razorpayStatus,
               builder: (context, snapshot) {
@@ -517,54 +517,119 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   margin: const EdgeInsets.only(top: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade50.withAlpha(120),
+                    color: const Color(0xFFECFDF5),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber.shade200),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Icon(Icons.savings_outlined, color: Colors.amber.shade900, size: 22),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Pass ~2% Gateway Fee to Tenant',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber.shade900,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Tenant pays the ~2% fee on online checkout so you receive 100% of the rent.',
-                              style: TextStyle(fontSize: 11, color: Colors.brown.shade700),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: passFee,
-                        activeColor: Colors.amber.shade800,
-                        onChanged: (val) async {
-                          await FirebaseFirestore.instance
-                              .doc('businesses/${widget.businessId}/settings/razorpay')
-                              .set({'passConvenienceFeeToTenant': val}, SetOptions(merge: true));
-                          setState(() {});
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  val
-                                      ? 'Gateway fee will be added to tenant payment links'
-                                      : 'You will absorb the ~2% gateway fee',
+                      Row(
+                        children: [
+                          const Icon(Icons.bolt_rounded, color: Color(0xFF065F46), size: 24),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Text(
+                                      'Dynamic Surcharge (UPI: 0%, Cards: 2%)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF064E3B),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            );
-                          }
-                        },
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Tenants pay 0% fee on UPI. Razorpay charges ~2% only on Cards/Netbanking so you receive 100% net rent.',
+                                  style: TextStyle(fontSize: 11, color: const Color(0xFF064E3B).withAlpha(200)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: passFee,
+                            activeThumbColor: const Color(0xFF059669),
+                            onChanged: (val) async {
+                              await FirebaseFirestore.instance
+                                  .doc('businesses/${widget.businessId}/settings/razorpay')
+                                  .set({
+                                    'passConvenienceFeeToTenant': val,
+                                    'surchargingMode': 'razorpay_native',
+                                  }, SetOptions(merge: true));
+                              setState(() {});
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      val
+                                          ? 'Dynamic surcharging enabled (0% UPI, 2% Cards)'
+                                          : 'You will absorb all gateway fees',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(Icons.help_outline, size: 14),
+                            label: const Text(
+                              'Dashboard Setup Guide',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Razorpay Surcharging Setup'),
+                                  content: const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'To ensure Razorpay adds fees only to Cards and keeps UPI free for tenants:',
+                                        style: TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      SizedBox(height: 12),
+                                      Text('1. Log into your Razorpay Dashboard (dashboard.razorpay.com).'),
+                                      SizedBox(height: 6),
+                                      Text('2. Go to Account & Settings → Payment Methods & Pricing (or Checkout Settings).'),
+                                      SizedBox(height: 6),
+                                      Text('3. Enable "Customer Surcharging / Pass fees to customer".'),
+                                      SizedBox(height: 6),
+                                      Text('4. Set Credit/Debit Cards to 2% and UPI to 0%.'),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'OneStay360 automatically passes the base rent, and Razorpay applies the fee dynamically!',
+                                        style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: const Text('Got it'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
