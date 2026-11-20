@@ -2,6 +2,7 @@
 // Unified login/signup screen for both tenants and business users
 
 import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
