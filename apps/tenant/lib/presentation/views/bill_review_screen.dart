@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,12 +31,79 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
   final _firestore = FirebaseFirestore.instance;
   
   bool _isSubmitting = false;
+  bool _isGeneratingLink = false;
+  bool _showManualEntry = false;
   String? _error;
 
   @override
   void dispose() {
     _transactionIdController.dispose();
     super.dispose();
+  }
+
+  Future<void> _payViaRazorpay(Map<String, dynamic> data) async {
+    final businessId = data['businessId'] as String? ?? '';
+    final tenantId = data['tenantId'] as String? ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    setState(() => _isGeneratingLink = true);
+
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable('createPaymentLink');
+      final result = await callable.call({
+        'businessId': businessId,
+        'tenantId': tenantId,
+        'enrollmentRequestId': widget.enrollmentRequestId,
+      });
+
+      final paymentLinkUrl = result.data['paymentLinkUrl'] as String?;
+      if (paymentLinkUrl != null && paymentLinkUrl.isNotEmpty) {
+        final uri = Uri.parse(paymentLinkUrl);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          _showRazorpayProcessingDialog();
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to generate payment link. Please try again.')),
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Failed to create payment link')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error initiating payment: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isGeneratingLink = false);
+    }
+  }
+
+  void _showRazorpayProcessingDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.hourglass_top_rounded, color: Color(0xFF0D7377)),
+            SizedBox(width: 8),
+            Text('Payment Processing'),
+          ],
+        ),
+        content: const Text(
+          'Once you complete your payment on Razorpay, your reservation will be automatically verified and confirmed within moments.\n\nYou do not need to enter any transaction ID manually.',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openUpiApp(String upiId, double amount, String propertyName) async {
@@ -187,6 +255,8 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
     final totalAmount = (data['totalBillAmount'] as num?)?.toDouble() ?? (depositAmount + advanceAmount);
     final ownerUpiId = data['ownerUpiId'] as String? ?? '';
 
+    final paymentMode = (data['paymentMode'] as String? ?? 'upi_manual').toLowerCase();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -295,189 +365,344 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
           ),
           const SizedBox(height: 24),
 
-          // UPI Payment Section
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.account_balance_wallet, color: Colors.green.shade700),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Pay via UPI',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+          // ── Payment Mode Specific Section ──
+          if (paymentMode == 'razorpay') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFecfdf5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF10b981).withAlpha(120)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10b981).withAlpha(30),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.shield_rounded, color: Color(0xFF047857), size: 24),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Pay directly to the owner\'s UPI - No platform fees!',
-                  style: TextStyle(color: Colors.black87),
-                ),
-                const SizedBox(height: 16),
-                
-                // UPI ID display
-                if (ownerUpiId.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'UPI ID',
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Pay Online via Razorpay',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF065f46),
                               ),
-                              Text(
-                                ownerUpiId,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'UPI, Cards, Netbanking • Auto-verified',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF047857)),
+                            ),
+                          ],
                         ),
-                        IconButton(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: ownerUpiId));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('UPI ID copied!')),
-                            );
-                          },
-                          icon: const Icon(Icons.copy),
-                          tooltip: 'Copy UPI ID',
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Pay Now Button
+                  const Text(
+                    'Your move-in payment will be instantly verified and your bed reservation confirmed automatically. No manual UTR entry needed!',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF065f46), height: 1.4),
+                  ),
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => _openUpiApp(ownerUpiId, totalAmount, propertyName),
+                      onPressed: _isGeneratingLink ? null : () => _payViaRazorpay(data),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade600,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                        backgroundColor: const Color(0xFF10b981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
                       ),
-                      icon: const Icon(Icons.open_in_new, color: Colors.white),
+                      icon: _isGeneratingLink
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.lock_rounded, size: 20),
                       label: Text(
-                        'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} via UPI',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        _isGeneratingLink
+                            ? 'Opening Razorpay...'
+                            : 'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} Securely',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // Transaction ID Input
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => setState(() => _showManualEntry = !_showManualEntry),
+                icon: Icon(
+                  _showManualEntry ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: Colors.grey.shade600,
                 ),
-              ],
+                label: Text(
+                  _showManualEntry
+                      ? 'Hide manual transaction confirmation'
+                      : 'Already paid outside? Confirm manually',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Confirm Your Payment',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'After paying, enter the UPI transaction ID (UTR number) from your payment app to confirm.',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _transactionIdController,
-                  decoration: InputDecoration(
-                    labelText: 'Transaction ID / UTR Number',
-                    hintText: 'e.g., 123456789012',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.receipt_long),
-                    errorText: _error,
-                  ),
-                  keyboardType: TextInputType.text,
-                  textCapitalization: TextCapitalization.characters,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isSubmitting ? null : () => _submitPayment(data),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+            if (_showManualEntry) ...[
+              const SizedBox(height: 12),
+              _buildManualConfirmationSection(data),
+            ],
+          ] else if (paymentMode == 'bank_transfer') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Pay via Bank Transfer',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            "I've Paid - Confirm Payment",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if ((data['bankName'] as String? ?? '').isNotEmpty)
+                    _buildBankDetailRow('Bank Name', data['bankName'] as String),
+                  if ((data['accountNumber'] as String? ?? '').isNotEmpty)
+                    _buildBankDetailRow('Account Number', data['accountNumber'] as String),
+                  if ((data['ifscCode'] as String? ?? '').isNotEmpty)
+                    _buildBankDetailRow('IFSC Code', data['ifscCode'] as String),
+                  if ((data['accountHolderName'] as String? ?? '').isNotEmpty)
+                    _buildBankDetailRow('Beneficiary', data['accountHolderName'] as String),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildManualConfirmationSection(data),
+          ] else ...[
+            // Default: Pay via UPI Section
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet, color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Pay via UPI',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Pay directly to the owner\'s UPI - No platform fees!',
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // UPI ID display
+                  if (ownerUpiId.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'UPI ID',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                                Text(
+                                  ownerUpiId,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                  ),
-                ),
-              ],
+                          IconButton(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: ownerUpiId));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('UPI ID copied!')),
+                              );
+                            },
+                            icon: const Icon(Icons.copy),
+                            tooltip: 'Copy UPI ID',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Pay Now Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openUpiApp(ownerUpiId, totalAmount, propertyName),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.open_in_new, color: Colors.white),
+                        label: Text(
+                          'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} via UPI',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildManualConfirmationSection(data),
+          ],
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualConfirmationSection(Map<String, dynamic> data) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Confirm Your Payment',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 8),
+          Text(
+            'After paying, enter the transaction ID (UTR / Reference number) to confirm.',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _transactionIdController,
+            decoration: InputDecoration(
+              labelText: 'Transaction ID / UTR Number',
+              hintText: 'e.g., 123456789012',
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.receipt_long),
+              errorText: _error,
+            ),
+            keyboardType: TextInputType.text,
+            textCapitalization: TextCapitalization.characters,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : () => _submitPayment(data),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      "I've Paid - Confirm Payment",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+          ),
         ],
       ),
     );

@@ -375,11 +375,11 @@ export const createPaymentLink = functions
       throw new functions.https.HttpsError('unauthenticated', 'Login required');
     }
 
-    const { businessId, tenantId, rentInvoiceId } = data || {};
-    if (!businessId || !tenantId || !rentInvoiceId) {
+    const { businessId, tenantId, rentInvoiceId, enrollmentRequestId } = data || {};
+    if (!businessId || (!rentInvoiceId && !enrollmentRequestId)) {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        'businessId, tenantId, rentInvoiceId required'
+        'businessId and either rentInvoiceId or enrollmentRequestId required'
       );
     }
 
@@ -403,7 +403,85 @@ export const createPaymentLink = functions
     const credentials = await getBusinessRazorpayCredentials(businessId);
     const keyIdHint = credentials.keyId ? `${credentials.keyId.slice(0, 6)}...${credentials.keyId.slice(-4)}` : 'unknown';
 
-    // Get the rent invoice
+    // ── Enrollment Request Flow ──
+    if (enrollmentRequestId) {
+      const enrollRef = db.doc(`enrollmentRequests/${enrollmentRequestId}`);
+      const enrollSnap = await enrollRef.get();
+      if (!enrollSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Enrollment request not found');
+      }
+
+      const enrollment = enrollSnap.data() as any;
+      if (enrollment.status === 'confirmed' || enrollment.status === 'approved') {
+        throw new functions.https.HttpsError('failed-precondition', 'Bill already paid and confirmed');
+      }
+
+      if (enrollment.razorpayPaymentLinkId && enrollment.razorpayPaymentLinkUrl) {
+        return {
+          paymentLinkUrl: enrollment.razorpayPaymentLinkUrl,
+          paymentLinkId: enrollment.razorpayPaymentLinkId,
+          alreadyCreated: true,
+        };
+      }
+
+      const totalBillAmount = Number(enrollment.totalBillAmount || enrollment.totalFirstMonth || 0);
+      if (totalBillAmount <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid bill amount');
+      }
+
+      const amountInPaise = Math.round(totalBillAmount * 100);
+
+      const linkPayload = {
+        amount: amountInPaise,
+        currency: 'INR',
+        description: `Move-in Bill - ${enrollment.propertyName || 'PG Reservation'}`,
+        customer: {
+          name: enrollment.tenantName || 'Tenant',
+          contact: enrollment.tenantPhone || undefined,
+          email: enrollment.tenantEmail || undefined,
+        },
+        notify: {
+          sms: false,
+          email: false,
+        },
+        reminder_enable: false,
+        notes: {
+          businessId,
+          enrollmentRequestId,
+          tenantId: enrollment.tenantId || tenantId || '',
+          type: 'enrollment',
+        },
+        callback_url: '',
+        callback_method: 'get',
+      };
+
+      const cleanPayload = JSON.parse(JSON.stringify(linkPayload));
+      const link = await razorpayRequest('POST', '/v1/payment_links', cleanPayload, credentials);
+
+      await enrollRef.update({
+        razorpayPaymentLinkId: link.id,
+        razorpayPaymentLinkUrl: link.short_url,
+        paymentMode: 'razorpay',
+        gateway: 'razorpay',
+        razorpayKeyIdHint: keyIdHint,
+        updatedAt: admin.firestore.Timestamp.now(),
+      });
+
+      functions.logger.info('enrollment_payment_link_created', {
+        businessId,
+        enrollmentRequestId,
+        paymentLinkId: link.id,
+        keyIdHint,
+      });
+
+      return {
+        paymentLinkUrl: link.short_url,
+        paymentLinkId: link.id,
+        alreadyCreated: false,
+      };
+    }
+
+    // ── Rent Invoice Flow ──
     const invoiceRef = db.doc(
       `businesses/${businessId}/tenants/${tenantId}/rent_invoices/${rentInvoiceId}`
     );
@@ -642,7 +720,39 @@ async function handlePaymentLinkPaid(event: any): Promise<void> {
   const amountInr = amountPaise / 100;
 
   const notes = paymentLink.notes || {};
-  const { businessId, tenantId, rentInvoiceId } = notes;
+  const { businessId, tenantId, rentInvoiceId, enrollmentRequestId } = notes;
+
+  if (enrollmentRequestId) {
+    const enrollRef = db.doc(`enrollmentRequests/${enrollmentRequestId}`);
+    const enrollSnap = await enrollRef.get();
+    if (!enrollSnap.exists) {
+      functions.logger.warn('payment_link_paid_enrollment_not_found', { enrollmentRequestId });
+      return;
+    }
+
+    const enrollData = enrollSnap.data() as any;
+    if (enrollData.status === 'confirmed' || enrollData.status === 'approved') {
+      functions.logger.info('payment_link_paid_enrollment_already_processed', { enrollmentRequestId });
+      return;
+    }
+
+    await enrollRef.update({
+      status: 'confirmed',
+      transactionId: razorpayPaymentId,
+      paidVia: 'razorpay',
+      razorpayPaymentId,
+      razorpayPaymentLinkId: paymentLinkId,
+      paidAt: admin.firestore.Timestamp.now(),
+      lastUpdated: admin.firestore.Timestamp.now(),
+    });
+
+    functions.logger.info('payment_link_paid_enrollment_confirmed', {
+      enrollmentRequestId,
+      razorpayPaymentId,
+      amountInr,
+    });
+    return;
+  }
 
   if (!businessId || !tenantId || !rentInvoiceId) {
     functions.logger.warn('payment_link_paid_missing_notes', { paymentLinkId, notes });
