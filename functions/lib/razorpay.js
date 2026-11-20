@@ -346,6 +346,9 @@ exports.createPaymentLink = functions
     }
     const credentials = await getBusinessRazorpayCredentials(businessId);
     const keyIdHint = credentials.keyId ? `${credentials.keyId.slice(0, 6)}...${credentials.keyId.slice(-4)}` : 'unknown';
+    // ── Convenience Fee Setting (Defaults to passing ~2% to tenant) ──
+    const passConvenienceFee = config.passConvenienceFeeToTenant !== false;
+    const feePercent = typeof config.convenienceFeePercent === 'number' ? config.convenienceFeePercent : 2.0;
     // ── Enrollment Request Flow ──
     if (enrollmentRequestId) {
         const enrollRef = db.doc(`enrollmentRequests/${enrollmentRequestId}`);
@@ -364,15 +367,17 @@ exports.createPaymentLink = functions
                 alreadyCreated: true,
             };
         }
-        const totalBillAmount = Number(enrollment.totalBillAmount || enrollment.totalFirstMonth || 0);
-        if (totalBillAmount <= 0) {
+        const baseBillAmount = Number(enrollment.totalBillAmount || enrollment.totalFirstMonth || 0);
+        if (baseBillAmount <= 0) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid bill amount');
         }
-        const amountInPaise = Math.round(totalBillAmount * 100);
+        const convenienceFee = passConvenienceFee ? Math.round(baseBillAmount * (feePercent / 100)) : 0;
+        const totalAmountToCollect = baseBillAmount + convenienceFee;
+        const amountInPaise = Math.round(totalAmountToCollect * 100);
         const linkPayload = {
             amount: amountInPaise,
             currency: 'INR',
-            description: `Move-in Bill - ${enrollment.propertyName || 'PG Reservation'}`,
+            description: `Move-in Bill - ${enrollment.propertyName || 'PG'}${convenienceFee > 0 ? ` (incl ₹${convenienceFee} fee)` : ''}`,
             customer: {
                 name: enrollment.tenantName || 'Tenant',
                 contact: enrollment.tenantPhone || undefined,
@@ -387,6 +392,8 @@ exports.createPaymentLink = functions
                 businessId,
                 enrollmentRequestId,
                 tenantId: enrollment.tenantId || tenantId || '',
+                baseBillAmount: String(baseBillAmount),
+                convenienceFee: String(convenienceFee),
                 type: 'enrollment',
             },
             callback_url: '',
@@ -399,6 +406,10 @@ exports.createPaymentLink = functions
             razorpayPaymentLinkUrl: link.short_url,
             paymentMode: 'razorpay',
             gateway: 'razorpay',
+            baseBillAmount,
+            convenienceFee,
+            totalAmountPaid: totalAmountToCollect,
+            convenienceFeePassedToTenant: passConvenienceFee,
             razorpayKeyIdHint: keyIdHint,
             updatedAt: admin.firestore.Timestamp.now(),
         });
@@ -406,11 +417,17 @@ exports.createPaymentLink = functions
             businessId,
             enrollmentRequestId,
             paymentLinkId: link.id,
+            baseBillAmount,
+            convenienceFee,
+            totalAmountToCollect,
             keyIdHint,
         });
         return {
             paymentLinkUrl: link.short_url,
             paymentLinkId: link.id,
+            baseAmount: baseBillAmount,
+            convenienceFee,
+            totalAmount: totalAmountToCollect,
             alreadyCreated: false,
         };
     }
@@ -435,12 +452,15 @@ exports.createPaymentLink = functions
     // Get tenant details
     const tenantSnap = await db.doc(`businesses/${businessId}/tenants/${tenantId}`).get();
     const tenantData = tenantSnap.exists ? tenantSnap.data() : {};
-    const amountInPaise = Math.round(invoice.amount * 100);
+    const baseRentAmount = Number(invoice.amount || 0);
+    const convenienceFee = passConvenienceFee ? Math.round(baseRentAmount * (feePercent / 100)) : 0;
+    const totalAmountToCollect = baseRentAmount + convenienceFee;
+    const amountInPaise = Math.round(totalAmountToCollect * 100);
     // Create Razorpay Payment Link on the merchant account
     const linkPayload = {
         amount: amountInPaise,
         currency: 'INR',
-        description: `Rent - ${invoice.month || 'Monthly Rent'}`,
+        description: `Rent - ${invoice.month || 'Monthly Rent'}${convenienceFee > 0 ? ` (incl ₹${convenienceFee} fee)` : ''}`,
         customer: {
             name: tenantData.name || 'Tenant',
             contact: tenantData.phone || undefined,
@@ -456,6 +476,8 @@ exports.createPaymentLink = functions
             tenantId,
             rentInvoiceId,
             periodMonth: invoice.periodMonth || '',
+            baseRentAmount: String(baseRentAmount),
+            convenienceFee: String(convenienceFee),
         },
         callback_url: '', // Deep link back to app (set if needed)
         callback_method: 'get',
@@ -467,6 +489,10 @@ exports.createPaymentLink = functions
         razorpayPaymentLinkId: link.id,
         razorpayPaymentLinkUrl: link.short_url,
         mode: 'razorpay',
+        baseRentAmount,
+        convenienceFee,
+        totalAmountPaid: totalAmountToCollect,
+        convenienceFeePassedToTenant: passConvenienceFee,
         razorpayKeyIdHint: keyIdHint,
         updatedAt: admin.firestore.Timestamp.now(),
     });
@@ -475,11 +501,17 @@ exports.createPaymentLink = functions
         tenantId,
         rentInvoiceId,
         paymentLinkId: link.id,
+        baseRentAmount,
+        convenienceFee,
+        totalAmountToCollect,
         keyIdHint,
     });
     return {
         paymentLinkUrl: link.short_url,
         paymentLinkId: link.id,
+        baseAmount: baseRentAmount,
+        convenienceFee,
+        totalAmount: totalAmountToCollect,
         alreadyCreated: false,
     };
 });

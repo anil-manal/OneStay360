@@ -416,7 +416,49 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                     'Your move-in payment will be instantly verified and your bed reservation confirmed automatically. No manual UTR entry needed!',
                     style: TextStyle(fontSize: 13, color: Color(0xFF065f46), height: 1.4),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF10b981).withAlpha(60)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Bill Amount', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text('₹${totalAmount.toInt()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Online Processing Fee (~2%)', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Text(
+                              '+ ₹${(totalAmount * 0.02).round()}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total Payable', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF065f46))),
+                            Text(
+                              '₹${(totalAmount + (totalAmount * 0.02).round()).toInt()}',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF065f46)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -438,7 +480,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                       label: Text(
                         _isGeneratingLink
                             ? 'Opening Razorpay...'
-                            : 'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} Securely',
+                            : 'Pay ₹${(totalAmount + (totalAmount * 0.02).round()).toInt()} Securely',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),

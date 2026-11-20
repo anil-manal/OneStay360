@@ -505,6 +505,72 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 10),
+            Divider(height: 1, color: Colors.grey.shade200),
+            // Convenience Fee Toggle
+            FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: razorpayStatus,
+              builder: (context, snapshot) {
+                final data = snapshot.data?.data() ?? {};
+                final passFee = data['passConvenienceFeeToTenant'] ?? true;
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50.withAlpha(120),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.savings_outlined, color: Colors.amber.shade900, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Pass ~2% Gateway Fee to Tenant',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Tenant pays the ~2% fee on online checkout so you receive 100% of the rent.',
+                              style: TextStyle(fontSize: 11, color: Colors.brown.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: passFee,
+                        activeColor: Colors.amber.shade800,
+                        onChanged: (val) async {
+                          await FirebaseFirestore.instance
+                              .doc('businesses/${widget.businessId}/settings/razorpay')
+                              .set({'passConvenienceFeeToTenant': val}, SetOptions(merge: true));
+                          setState(() {});
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  val
+                                      ? 'Gateway fee will be added to tenant payment links'
+                                      : 'You will absorb the ~2% gateway fee',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ],
         ],
       ),
