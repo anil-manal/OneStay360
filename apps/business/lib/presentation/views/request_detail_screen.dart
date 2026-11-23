@@ -831,6 +831,19 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
         return aPreferred.compareTo(bPreferred);
       });
 
+      // Check if OneStay360 Cashfree Online Collection is enabled
+      final cfSnap = await _firestore.doc('businesses/${widget.businessId}/settings/cashfree').get();
+      final cfEnabled = !cfSnap.exists || cfSnap.data()?['enabled'] != false;
+      if (cfEnabled) {
+        methods.insert(0, {
+          'id': 'cashfree_platform',
+          'type': 'cashfree',
+          'isPreferred': true,
+          'title': 'OneStay360 Online UPI (0% Fee)',
+          'subtitle': 'Direct UPI QR, GPay, PhonePe • Auto-verified',
+        });
+      }
+
       if (mounted) {
         setState(() {
           _paymentMethods = methods;
@@ -1149,11 +1162,11 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
             'accountHolderName': selectedMethod['accountHolderName'],
             'paymentMethodId': _selectedPaymentMethodId,
           };
-        } else if (methodType == 'razorpay') {
-          paymentMode = 'razorpay';
+        } else if (methodType == 'cashfree' || methodType == 'razorpay') {
+          paymentMode = 'cashfree';
           paymentInfo = {
             'paymentMethodId': _selectedPaymentMethodId,
-            'gateway': 'razorpay',
+            'gateway': 'cashfree',
           };
         } else {
           paymentMode = 'cash';
@@ -1787,6 +1800,10 @@ class _ApprovalDialogState extends State<_ApprovalDialog> {
                                   : 'Bank Account';
                               subtitle = '****$lastFour';
                               icon = Icons.account_balance;
+                            } else if (type == 'cashfree') {
+                              label = 'OneStay360 Online (0% Fee UPI)';
+                              subtitle = 'GPay, PhonePe, UPI QR • Instant Auto-verification';
+                              icon = Icons.bolt_rounded;
                             } else if (type == 'razorpay') {
                               label = 'Razorpay Online';
                               subtitle = 'UPI, Cards, Netbanking (Auto-verified)';

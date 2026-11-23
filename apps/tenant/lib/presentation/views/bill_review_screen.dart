@@ -83,18 +83,23 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
   Future<void> _payViaOnlineGateway(Map<String, dynamic> data) async {
     final businessId = data['businessId'] as String? ?? '';
     if (businessId.isEmpty) {
-      await _payViaRazorpay(data);
+      await _payViaCashfree(data);
       return;
     }
 
     try {
       final cfSnap = await FirebaseFirestore.instance.doc('businesses/$businessId/settings/cashfree').get();
-      if (cfSnap.exists && (cfSnap.data()?['enabled'] == true)) {
+      // If Cashfree is NOT explicitly disabled by the PG owner, Cashfree is preferred!
+      if (!cfSnap.exists || cfSnap.data()?['enabled'] != false) {
         await _payViaCashfree(data);
         return;
       }
-    } catch (_) {}
+    } catch (_) {
+      await _payViaCashfree(data);
+      return;
+    }
 
+    // Only fallback to Razorpay if Cashfree was explicitly disabled by the PG owner
     await _payViaRazorpay(data);
   }
 
@@ -449,7 +454,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
           const SizedBox(height: 24),
 
           // ── Payment Mode Specific Section ──
-          if (paymentMode == 'razorpay') ...[
+          if (paymentMode == 'razorpay' || paymentMode == 'cashfree' || paymentMode == 'online') ...[
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -477,7 +482,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Pay Online via Razorpay',
+                              'Pay Online (0% Fee on UPI)',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
@@ -486,7 +491,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'UPI, Cards, Netbanking • Auto-verified',
+                              'Instant UPI, Cards, Netbanking • Auto-verified',
                               style: TextStyle(fontSize: 12, color: Color(0xFF047857)),
                             ),
                           ],

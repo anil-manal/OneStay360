@@ -74,6 +74,25 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
     }
 
     try {
+      // 1. Check Cashfree first (OneStay360 platform default)
+      final cfSnap = await FirebaseFirestore.instance
+          .collection('businesses')
+          .doc(tenantState.businessId)
+          .collection('settings')
+          .doc('cashfree')
+          .get();
+
+      final cfEnabled = !cfSnap.exists || cfSnap.data()?['enabled'] != false;
+      if (cfEnabled) {
+        setState(() {
+          _paymentsEnabled = true;
+          _checkingPaymentStatus = false;
+          _paymentMode = 'OneStay'; // Online collections via Cashfree
+        });
+        return;
+      }
+
+      // 2. Fallback to Razorpay if Cashfree was paused
       final configSnap = await FirebaseFirestore.instance
           .collection('businesses')
           .doc(tenantState.businessId)
@@ -81,19 +100,17 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
           .doc('razorpay')
           .get();
 
-      if (configSnap.exists) {
-        final data = configSnap.data()!;
+      if (configSnap.exists && configSnap.data()?['paymentsEnabled'] == true) {
         setState(() {
-          _paymentsEnabled = data['paymentsEnabled'] == true;
-          // Read UPI ID from the same settings document
-          _businessUpiId = (data['upiId'] as String? ?? '').trim();
+          _paymentsEnabled = true;
+          _businessUpiId = (configSnap.data()?['upiId'] as String? ?? '').trim();
           _checkingPaymentStatus = false;
         });
       } else {
         setState(() {
           _paymentsEnabled = false;
           _checkingPaymentStatus = false;
-          _paymentMode = 'UPI'; // Fallback if no Razorpay setup
+          _paymentMode = 'UPI';
         });
       }
     } catch (e) {
@@ -121,6 +138,29 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
     setState(() => _isGeneratingLink = true);
 
     try {
+      // 1. Try Cashfree first (OneStay360 preferred gateway, 0% UPI fee)
+      try {
+        final cfCallable = FirebaseFunctions.instance.httpsCallable('createCashfreePaymentSession');
+        final cfResult = await cfCallable.call({
+          'businessId': tenantState.businessId,
+          'tenantId': tenantState.tenantId,
+          'rentInvoiceId': widget.rentInvoiceId,
+        });
+
+        final paymentUrl = cfResult.data['paymentUrl'] as String?;
+        if (paymentUrl != null && paymentUrl.isNotEmpty) {
+          final uri = Uri.parse(paymentUrl);
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (mounted) {
+            _showPaymentPendingDialog();
+          }
+          return;
+        }
+      } catch (cfErr) {
+        debugPrint('Cashfree link generation fallback to Razorpay: $cfErr');
+      }
+
+      // 2. Fallback to Razorpay
       final callable = FirebaseFunctions.instance.httpsCallable('createPaymentLink');
       final result = await callable.call({
         'businessId': tenantState.businessId,
@@ -133,7 +173,6 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
         final uri = Uri.parse(paymentLinkUrl);
         try {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
-          // After returning, show a status message
           if (mounted) {
             _showPaymentPendingDialog();
           }
@@ -410,7 +449,7 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
-                                'Secure payment powered by Razorpay',
+                                'Instant 0% Fee UPI & Online Payment',
                                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF065f46)),
                               ),
                             ),
@@ -418,7 +457,7 @@ class _RentPaymentScreenState extends State<RentPaymentScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Pay securely using UPI, Cards, or Net Banking. Your payment will be auto-verified — no screenshots or transaction IDs needed.',
+                          'Pay 0% fee on UPI (GPay, PhonePe, Paytm) or use Cards/Net Banking. Your payment is verified instantly.',
                           style: TextStyle(fontSize: 12, color: Color(0xFF047857), height: 1.5),
                         ),
                       ],

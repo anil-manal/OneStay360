@@ -377,6 +377,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 6),
+                              _chip('Preferred (Default)', Colors.blue.shade50, Colors.blue.shade800),
                             ],
                           ),
                           const SizedBox(height: 6),
