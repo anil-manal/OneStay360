@@ -39,34 +39,51 @@ function getCashfreeHost(env: CashfreeEnvironment): string {
 }
 
 /**
- * Look up business Cashfree credentials from Firestore
+ * Look up OneStay360 platform Cashfree credentials.
+ * Checked in order:
+ * 1. Firestore 'system/cashfree_platform' (configured by Super Admin in web console)
+ * 2. Process environment variables (CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_ENV)
+ * 3. Business-level override in 'businesses/{businessId}/settings/cashfree_private' (if any)
  */
-async function getBusinessCashfreeCredentials(businessId: string): Promise<CashfreeCredentials> {
-  const secretSnap = await db.doc(`businesses/${businessId}/settings/cashfree_private`).get();
-  
-  if (secretSnap.exists) {
-    const data = secretSnap.data() as any;
-    const appId = (data?.appId || data?.app_id || '').toString().trim();
-    const secretKey = (data?.secretKey || data?.secret_key || '').toString().trim();
+async function getPlatformCashfreeCredentials(businessId?: string): Promise<CashfreeCredentials> {
+  // 1. Try reading from Firestore system/cashfree_platform
+  const platformSnap = await db.doc('system/cashfree_platform').get();
+  if (platformSnap.exists) {
+    const data = platformSnap.data() as any;
+    const appId = (data?.appId || '').toString().trim();
+    const secretKey = (data?.secretKey || '').toString().trim();
     const environment: CashfreeEnvironment = data?.environment === 'production' ? 'production' : 'sandbox';
-    
     if (appId && secretKey) {
       return { appId, secretKey, environment };
     }
   }
 
-  // Fallback to platform-level default sandbox credentials if configured in environment
-  const platformAppId = process.env.CASHFREE_APP_ID || '';
-  const platformSecret = process.env.CASHFREE_SECRET_KEY || '';
+  // 2. Check environment variables
+  const platformAppId = (process.env.CASHFREE_APP_ID || '').trim();
+  const platformSecret = (process.env.CASHFREE_SECRET_KEY || '').trim();
   const platformEnv = (process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox') as CashfreeEnvironment;
 
   if (platformAppId && platformSecret) {
     return { appId: platformAppId, secretKey: platformSecret, environment: platformEnv };
   }
 
+  // 3. Fallback: check business-level override if provided
+  if (businessId) {
+    const secretSnap = await db.doc(`businesses/${businessId}/settings/cashfree_private`).get();
+    if (secretSnap.exists) {
+      const data = secretSnap.data() as any;
+      const appId = (data?.appId || data?.app_id || '').toString().trim();
+      const secretKey = (data?.secretKey || data?.secret_key || '').toString().trim();
+      const environment: CashfreeEnvironment = data?.environment === 'production' ? 'production' : 'sandbox';
+      if (appId && secretKey) {
+        return { appId, secretKey, environment };
+      }
+    }
+  }
+
   throw new functions.https.HttpsError(
     'failed-precondition',
-    'Cashfree credentials not configured for this business. Please configure Cashfree App ID & Secret Key.'
+    'OneStay360 platform Cashfree gateway is not yet configured. Please configure OneStay360 Cashfree credentials in the Super Admin Console.'
   );
 }
 
@@ -179,7 +196,16 @@ export const createCashfreePaymentSession = functions
       );
     }
 
-    const credentials = await getBusinessCashfreeCredentials(businessId);
+    // Check if business explicitly disabled online collection
+    const bizSettingsSnap = await db.doc(`businesses/${businessId}/settings/cashfree`).get();
+    if (bizSettingsSnap.exists && bizSettingsSnap.data()?.enabled === false) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Online UPI collection is currently paused by this property.'
+      );
+    }
+
+    const credentials = await getPlatformCashfreeCredentials(businessId);
 
     // ── 1. Enrollment Move-in Bill Flow ──
     if (enrollmentRequestId) {
@@ -359,7 +385,16 @@ export const cashfreePaymentWebhook = functions
       }
 
       // Verify webhook signature if secret key is present
-      const credentials = await getBusinessCashfreeCredentials(businessId);
+      // Check if business explicitly disabled online collection
+    const bizSettingsSnap = await db.doc(`businesses/${businessId}/settings/cashfree`).get();
+    if (bizSettingsSnap.exists && bizSettingsSnap.data()?.enabled === false) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Online UPI collection is currently paused by this property.'
+      );
+    }
+
+    const credentials = await getPlatformCashfreeCredentials(businessId);
       if (signature && timestamp) {
         const isValid = verifyCashfreeWebhookSignature(signature, rawBody, timestamp, credentials.secretKey);
         if (!isValid) {
@@ -414,6 +449,48 @@ export const cashfreePaymentWebhook = functions
       functions.logger.error('cashfree_webhook_processing_error', { error: err.message });
       res.status(500).send('Internal Server Error');
     }
+  });
+
+// ─────────────────────────────────────────────────────────
+// CALLABLE: Save Master Platform Cashfree Settings (Super Admin)
+// ─────────────────────────────────────────────────────────
+export const savePlatformCashfreeSettings = functions
+  .runWith({ timeoutSeconds: 30, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    const uid = context.auth?.uid;
+    if (!uid) {
+      throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    }
+
+    const { appId, secretKey, environment } = data || {};
+    if (!appId || !secretKey) {
+      throw new functions.https.HttpsError('invalid-argument', 'appId and secretKey are required');
+    }
+
+    const env: CashfreeEnvironment = environment === 'production' ? 'production' : 'sandbox';
+
+    // Verify credentials by testing connection with Cashfree Sandbox/Prod
+    try {
+      await cashfreeApiRequest('GET', '/pg/orders?limit=1', null, { appId, secretKey, environment: env });
+    } catch (apiErr: any) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `Failed to verify platform Cashfree credentials with Cashfree ${env}: ${apiErr.message}`
+      );
+    }
+
+    // Save platform credentials in system/cashfree_platform
+    await db.doc('system/cashfree_platform').set({
+      appId,
+      secretKey,
+      environment: env,
+      appIdHint: `${appId.slice(0, 6)}...${appId.slice(-4)}`,
+      verified: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: uid,
+    });
+
+    return { success: true, message: `Platform Cashfree (${env}) credentials verified and saved successfully` };
   });
 
 // ─────────────────────────────────────────────────────────

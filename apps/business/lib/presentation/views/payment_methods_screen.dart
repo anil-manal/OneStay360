@@ -327,15 +327,12 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       stream: stream,
       builder: (context, snapshot) {
         final data = snapshot.data?.data() ?? {};
-        final isConfigured = snapshot.hasData && snapshot.data!.exists && (data['appIdMasked'] != null || data['enabled'] != null);
-        final isEnabled = data['enabled'] == true;
-        final env = (data['environment'] as String?) ?? 'sandbox';
-        final isSandbox = env == 'sandbox';
-        final appIdMasked = (data['appIdMasked'] as String?) ?? '';
+        // Enabled by default unless explicitly disabled by the PG owner
+        final isEnabled = data.containsKey('enabled') ? (data['enabled'] == true) : true;
 
         return Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -347,10 +344,10 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withAlpha(25),
-                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFF10b981).withAlpha(25),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.hub_rounded, color: Color(0xFF4F46E5), size: 28),
+                      child: const Icon(Icons.bolt_rounded, color: Color(0xFF059669), size: 28),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -360,7 +357,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                           Row(
                             children: [
                               const Text(
-                                'Cashfree AutoCollect',
+                                'OneStay360 UPI Collections',
                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(width: 8),
@@ -372,7 +369,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                                   border: Border.all(color: Colors.green.shade200),
                                 ),
                                 child: Text(
-                                  '0% Fee UPI',
+                                  '0% Fee for Tenants',
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -385,81 +382,66 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              if (isConfigured) ...[
-                                _chip(
-                                  isSandbox ? 'Test / Sandbox' : 'Live Mode',
-                                  isSandbox ? Colors.amber.shade50 : Colors.green.shade50,
-                                  isSandbox ? Colors.amber.shade900 : Colors.green.shade900,
-                                ),
-                                const SizedBox(width: 6),
-                                _chip(
-                                  isEnabled ? 'Active' : 'Disabled',
-                                  isEnabled ? Colors.blue.shade50 : Colors.grey.shade200,
-                                  isEnabled ? Colors.blue.shade800 : Colors.grey.shade700,
-                                ),
-                              ] else
-                                _chip('Not Configured', Colors.grey.shade200, Colors.grey.shade700),
+                              _chip(
+                                isEnabled ? 'Active (Auto-Collect ON)' : 'Online Collection Paused',
+                                isEnabled ? Colors.green.shade50 : Colors.grey.shade200,
+                                isEnabled ? Colors.green.shade800 : Colors.grey.shade700,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Flat ₹2–₹4 fee per collection instead of 2% PG cut. Supports move-in deposit, 1st rent & monthly dues via UPI QR and Virtual Accounts.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                            'Tenants pay move-in dues (1st rent + deposit) and monthly rent via UPI (GPay, PhonePe, Paytm). Payments auto-verify instantly with 0% extra fee for tenants.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700, height: 1.4),
                           ),
-                          if (appIdMasked.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'App ID: $appIdMasked',
-                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade600),
-                            ),
-                          ],
                         ],
                       ),
                     ),
-                    if (isConfigured)
-                      Switch(
-                        value: isEnabled,
-                        activeThumbColor: const Color(0xFF4F46E5),
-                        onChanged: (val) async {
-                          await FirebaseFirestore.instance
-                              .doc('businesses/${widget.businessId}/settings/cashfree')
-                              .set({'enabled': val}, SetOptions(merge: true));
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(val ? 'Cashfree gateway enabled' : 'Cashfree gateway disabled'),
-                              ),
-                            );
-                          }
-                        },
-                      ),
+                    Switch(
+                      value: isEnabled,
+                      activeThumbColor: const Color(0xFF059669),
+                      onChanged: (val) async {
+                        await FirebaseFirestore.instance
+                            .doc('businesses/${widget.businessId}/settings/cashfree')
+                            .set({'enabled': val}, SetOptions(merge: true));
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(val ? 'Online UPI collections enabled' : 'Online collections paused'),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.grey.shade200),
+                const SizedBox(height: 10),
                 Row(
                   children: [
-                    ElevatedButton(
-                      onPressed: () => _showCashfreeSetupDialog(context, data),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4F46E5),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    const Icon(Icons.account_balance_wallet_outlined, size: 16, color: Colors.grey),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Settlement: Deposited directly to your preferred bank account below.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       ),
-                      child: Text(isConfigured ? 'Edit Credentials' : 'Set Up Cashfree'),
                     ),
-                    const Spacer(),
                     TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
                       onPressed: () {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Cashfree AutoCollect Advantage'),
+                            title: const Text('OneStay360 Auto-Collect'),
                             content: const Text(
-                              '• Tenants pay 0% extra fee on UPI (GPay, PhonePe, Paytm).\n'
-                              '• No 2% cut: PG owner pays only ~₹2-₹4 flat fee per payment.\n'
-                              '• Auto-reconciles 1st Rent + Deposit and monthly rent with instant confirmation.\n'
-                              '• Switch freely between Sandbox (Test) and Production (Live).',
+                              '• Tenants pay directly via any UPI App (GPay, PhonePe, Paytm, BHIM) with 0% convenience fee.\n\n'
+                              '• No manual UTR / screenshot checking needed: move-in bills and rent invoices are marked paid immediately on webhook verification.\n\n'
+                              '• Collections are settled directly into the Bank Account or UPI ID you mark as "Preferred" below.',
                               style: TextStyle(height: 1.5),
                             ),
                             actions: [
@@ -471,199 +453,13 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                           ),
                         );
                       },
-                      child: const Text('Learn More'),
+                      child: const Text('How it works', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669))),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  void _showCashfreeSetupDialog(BuildContext context, Map<String, dynamic> currentData) {
-    final appIdController = TextEditingController();
-    final secretKeyController = TextEditingController();
-    String selectedEnv = (currentData['environment'] as String?) ?? 'sandbox';
-    bool isSaving = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withAlpha(25),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.lock_rounded, color: Color(0xFF4F46E5), size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text('Cashfree Credentials', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Enter your Cashfree API credentials from the Cashfree Merchant Dashboard.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedEnv,
-                      decoration: const InputDecoration(
-                        labelText: 'Environment',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'sandbox',
-                          child: Text('Sandbox (Test Mode)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'production',
-                          child: Text('Production (Live Mode)'),
-                        ),
-                      ],
-                      onChanged: isSaving
-                          ? null
-                          : (val) {
-                              if (val != null) {
-                                setDialogState(() => selectedEnv = val);
-                              }
-                            },
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: appIdController,
-                      enabled: !isSaving,
-                      decoration: InputDecoration(
-                        labelText: 'Cashfree App ID (Client ID)',
-                        hintText: selectedEnv == 'sandbox' ? 'TEST...' : 'CF...',
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: secretKeyController,
-                      enabled: !isSaving,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Cashfree Secret Key',
-                        hintText: 'Enter secret key',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade100),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.blue.shade800),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Keys are encrypted and securely stored in Firebase Cloud Functions backend.',
-                              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          final appId = appIdController.text.trim();
-                          final secretKey = secretKeyController.text.trim();
-
-                          if (appId.isEmpty || secretKey.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter both App ID and Secret Key')),
-                            );
-                            return;
-                          }
-
-                          setDialogState(() => isSaving = true);
-                          try {
-                            final callable = FirebaseFunctions.instance.httpsCallable('saveCashfreeSettings');
-                            await callable.call({
-                              'businessId': widget.businessId,
-                              'appId': appId,
-                              'secretKey': secretKey,
-                              'environment': selectedEnv,
-                            });
-
-                            if (!context.mounted) return;
-                            Navigator.pop(dialogCtx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Cashfree credentials saved successfully!'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          } on FirebaseFunctionsException catch (e) {
-                            setDialogState(() => isSaving = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(e.message ?? 'Failed to save credentials'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          } catch (e) {
-                            setDialogState(() => isSaving = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('Save & Verify'),
-                ),
-              ],
-            );
-          },
         );
       },
     );
