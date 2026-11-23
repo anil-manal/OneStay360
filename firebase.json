@@ -26,12 +26,6 @@
     },
     "singleProjectMode": true
   },
-  "ignore": [
-    "**/node_modules/**",
-    "**/.*/**",
-    "**/build/**",
-    "**/.git/**"
-  ],
   "hosting": {
     "public": "hosting/app-links",
     "ignore": [
