@@ -235,7 +235,7 @@ exports.createCashfreePaymentSession = functions
                 send_email: false,
             },
             link_meta: {
-                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
+                return_url: `https://www.onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
             },
             link_notes: {
@@ -293,7 +293,7 @@ exports.createCashfreePaymentSession = functions
                 send_email: false,
             },
             link_meta: {
-                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
+                return_url: `https://www.onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
             },
             link_notes: {

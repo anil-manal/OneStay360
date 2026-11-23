@@ -4,4 +4,4 @@ export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'failed' | 'void';
 // Tenant rent invoice types
 export type RentInvoiceStatus = 'unpaid' | 'paid' | 'overdue';
 export type PaymentVerification = 'verified' | 'unverified';
-export type PaymentMode = 'razorpay' | 'upi' | 'cash';
+export type PaymentMode = 'cashfree' | 'razorpay' | 'upi' | 'cash';
