@@ -59,3 +59,8 @@ key.properties
 **/key.properties
 *.keystore
 *.jks
+
+# Environment files
+.env*.local
+**/.env*.local
+
