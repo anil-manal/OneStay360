@@ -41,6 +41,89 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
     super.dispose();
   }
 
+  Future<void> _payViaCashfree(Map<String, dynamic> data) async {
+    final businessId = data['businessId'] as String? ?? '';
+    final tenantId = data['tenantId'] as String? ?? FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    setState(() => _isGeneratingLink = true);
+
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable('createCashfreePaymentSession');
+      final result = await callable.call({
+        'businessId': businessId,
+        'tenantId': tenantId,
+        'enrollmentRequestId': widget.enrollmentRequestId,
+      });
+
+      final paymentUrl = result.data['paymentUrl'] as String?;
+      if (paymentUrl != null && paymentUrl.isNotEmpty) {
+        final uri = Uri.parse(paymentUrl);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          _showPaymentProcessingDialog('Cashfree');
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to generate Cashfree payment link.')),
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Failed to create Cashfree payment link')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error initiating Cashfree payment: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isGeneratingLink = false);
+    }
+  }
+
+  Future<void> _payViaOnlineGateway(Map<String, dynamic> data) async {
+    final businessId = data['businessId'] as String? ?? '';
+    if (businessId.isEmpty) {
+      await _payViaRazorpay(data);
+      return;
+    }
+
+    try {
+      final cfSnap = await FirebaseFirestore.instance.doc('businesses/$businessId/settings/cashfree').get();
+      if (cfSnap.exists && (cfSnap.data()?['enabled'] == true)) {
+        await _payViaCashfree(data);
+        return;
+      }
+    } catch (_) {}
+
+    await _payViaRazorpay(data);
+  }
+
+  void _showPaymentProcessingDialog(String provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.hourglass_top_rounded, color: Color(0xFF0D7377)),
+            SizedBox(width: 8),
+            Text('Payment Processing'),
+          ],
+        ),
+        content: Text(
+          'Once you complete your payment on $provider, your reservation will be automatically verified and confirmed within moments.\n\nYou do not need to enter any transaction ID manually.',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _payViaRazorpay(Map<String, dynamic> data) async {
     final businessId = data['businessId'] as String? ?? '';
     final tenantId = data['tenantId'] as String? ?? FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -473,7 +556,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _isGeneratingLink ? null : () => _payViaRazorpay(data),
+                      onPressed: _isGeneratingLink ? null : () => _payViaOnlineGateway(data),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10b981),
                         foregroundColor: Colors.white,
@@ -490,7 +573,7 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
                           : const Icon(Icons.lock_rounded, size: 20),
                       label: Text(
                         _isGeneratingLink
-                            ? 'Opening Razorpay...'
+                            ? 'Opening Payment Gateway...'
                             : 'Pay ₹${totalAmount.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} Securely',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),

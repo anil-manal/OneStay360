@@ -15,5 +15,6 @@ export * from './enrollmentNotifications';
 export * from './tenantOnboarding'; // includes vacateTenant
 export * from './rentPaymentNotifications';
 export * from './razorpay';
+export * from './cashfree';
 export * from './tenantBilling';
 export * from './accountDeletion';
