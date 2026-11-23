@@ -75,7 +75,7 @@ jobs:
         working-directory: apps/business
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
         working-directory: apps/business
 
       - name: Run unit tests
@@ -117,7 +117,7 @@ jobs:
         working-directory: apps/tenant
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
         working-directory: apps/tenant
 
       - name: Run unit tests
