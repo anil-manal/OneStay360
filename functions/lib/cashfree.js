@@ -204,12 +204,12 @@ exports.createCashfreePaymentSession = functions
         if (enrollment.status === 'confirmed' || enrollment.status === 'approved') {
             throw new functions.https.HttpsError('failed-precondition', 'Bill already paid');
         }
-        // Check if active Cashfree session already exists
-        if (enrollment.cashfreePaymentUrl && enrollment.cashfreePaymentSessionId) {
+        // Check if active Cashfree link already exists
+        if (enrollment.cashfreePaymentUrl && enrollment.cashfreeLinkId) {
             return {
                 paymentUrl: enrollment.cashfreePaymentUrl,
-                paymentSessionId: enrollment.cashfreePaymentSessionId,
-                orderId: enrollment.cashfreeOrderId,
+                linkId: enrollment.cashfreeLinkId,
+                orderId: enrollment.cashfreeLinkId,
                 environment: credentials.environment,
                 alreadyCreated: true,
             };
@@ -218,40 +218,40 @@ exports.createCashfreePaymentSession = functions
         if (billAmount <= 0) {
             throw new functions.https.HttpsError('invalid-argument', 'Invalid bill amount');
         }
-        const uniqueOrderId = `order_enroll_${enrollmentRequestId.substring(0, 10)}_${Date.now().toString().slice(-6)}`;
+        const uniqueLinkId = `link_enroll_${enrollmentRequestId.substring(0, 8)}_${Date.now().toString().slice(-6)}`;
         const customerPhone = (enrollment.tenantPhone || '9999999999').replace(/[^0-9]/g, '').slice(-10);
-        const orderPayload = {
-            order_id: uniqueOrderId,
-            order_amount: billAmount,
-            order_currency: 'INR',
+        const linkPayload = {
+            link_id: uniqueLinkId,
+            link_amount: billAmount,
+            link_currency: 'INR',
+            link_purpose: `Move-in Bill - ${enrollment.propertyName || 'OneStay360 PG'}`,
             customer_details: {
-                customer_id: tenantId || uid,
                 customer_name: enrollment.tenantName || 'Tenant',
-                customer_email: enrollment.tenantEmail || 'tenant@onestay360.com',
                 customer_phone: customerPhone.length === 10 ? customerPhone : '9999999999',
+                customer_email: enrollment.tenantEmail || 'tenant@onestay360.com',
             },
-            order_meta: {
-                return_url: `https://onestay360.in/payment/status?order_id=${uniqueOrderId}`,
+            link_notify: {
+                send_sms: false,
+                send_email: false,
+            },
+            link_meta: {
+                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
-                payment_methods: 'upi,cc,dc,nb',
             },
-            order_note: `Move-in Bill - ${enrollment.propertyName || 'OneStay360 PG'}`,
-            order_tags: {
+            link_notes: {
                 businessId,
                 enrollmentRequestId,
                 tenantId: tenantId || uid,
                 type: 'enrollment',
             },
         };
-        const cfResponse = await cashfreeApiRequest('POST', '/pg/orders', orderPayload, credentials);
-        const paymentSessionId = cfResponse.payment_session_id;
-        // Construct payment URL for hosted checkout
-        const host = credentials.environment === 'production' ? 'payments.cashfree.com' : 'payments-test.cashfree.com';
-        const paymentUrl = `https://${host}/order/#${paymentSessionId}`;
-        // Save order metadata in Firestore enrollment doc
+        const cfResponse = await cashfreeApiRequest('POST', '/pg/links', linkPayload, credentials);
+        const paymentUrl = cfResponse.link_url;
+        // Save link metadata in Firestore enrollment doc
         await enrollRef.update({
-            cashfreeOrderId: uniqueOrderId,
-            cashfreePaymentSessionId: paymentSessionId,
+            cashfreeOrderId: uniqueLinkId,
+            cashfreeLinkId: uniqueLinkId,
+            cashfreeCfLinkId: cfResponse.cf_link_id,
             cashfreePaymentUrl: paymentUrl,
             cashfreeCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
             paymentProvider: 'cashfree',
@@ -259,8 +259,8 @@ exports.createCashfreePaymentSession = functions
         });
         return {
             paymentUrl,
-            paymentSessionId,
-            orderId: uniqueOrderId,
+            linkId: uniqueLinkId,
+            orderId: uniqueLinkId,
             environment: credentials.environment,
         };
     }
@@ -276,44 +276,48 @@ exports.createCashfreePaymentSession = functions
             throw new functions.https.HttpsError('failed-precondition', 'Invoice already paid');
         }
         const billAmount = Number(invoice.totalAmount || invoice.amount || 0);
-        const uniqueOrderId = `order_rent_${rentInvoiceId.substring(0, 10)}_${Date.now().toString().slice(-6)}`;
+        const uniqueLinkId = `link_rent_${rentInvoiceId.substring(0, 8)}_${Date.now().toString().slice(-6)}`;
         const customerPhone = (invoice.tenantPhone || '9999999999').replace(/[^0-9]/g, '').slice(-10);
-        const orderPayload = {
-            order_id: uniqueOrderId,
-            order_amount: billAmount,
-            order_currency: 'INR',
+        const linkPayload = {
+            link_id: uniqueLinkId,
+            link_amount: billAmount,
+            link_currency: 'INR',
+            link_purpose: `Rent Invoice - ${invoice.monthYear || 'Monthly Rent'}`,
             customer_details: {
-                customer_id: tenantId || uid,
                 customer_name: invoice.tenantName || 'Tenant',
-                customer_email: invoice.tenantEmail || 'tenant@onestay360.com',
                 customer_phone: customerPhone.length === 10 ? customerPhone : '9999999999',
+                customer_email: invoice.tenantEmail || 'tenant@onestay360.com',
             },
-            order_meta: {
-                return_url: `https://onestay360.in/payment/status?order_id=${uniqueOrderId}`,
+            link_notify: {
+                send_sms: false,
+                send_email: false,
+            },
+            link_meta: {
+                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
             },
-            order_note: `Rent Invoice - ${invoice.monthYear || 'Monthly Rent'}`,
-            order_tags: {
+            link_notes: {
                 businessId,
                 rentInvoiceId,
                 tenantId: tenantId || uid,
                 type: 'monthly_rent',
             },
         };
-        const cfResponse = await cashfreeApiRequest('POST', '/pg/orders', orderPayload, credentials);
-        const paymentSessionId = cfResponse.payment_session_id;
-        const host = credentials.environment === 'production' ? 'payments.cashfree.com' : 'payments-test.cashfree.com';
-        const paymentUrl = `https://${host}/order/#${paymentSessionId}`;
+        const cfResponse = await cashfreeApiRequest('POST', '/pg/links', linkPayload, credentials);
+        const paymentUrl = cfResponse.link_url;
         await invoiceRef.update({
-            cashfreeOrderId: uniqueOrderId,
-            cashfreePaymentSessionId: paymentSessionId,
+            cashfreeOrderId: uniqueLinkId,
+            cashfreeLinkId: uniqueLinkId,
+            cashfreeCfLinkId: cfResponse.cf_link_id,
             cashfreePaymentUrl: paymentUrl,
+            cashfreeCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
             paymentProvider: 'cashfree',
+            cashfreeEnvironment: credentials.environment,
         });
         return {
             paymentUrl,
-            paymentSessionId,
-            orderId: uniqueOrderId,
+            linkId: uniqueLinkId,
+            orderId: uniqueLinkId,
             environment: credentials.environment,
         };
     }
@@ -338,21 +342,17 @@ exports.cashfreePaymentWebhook = functions
             type: payload?.type,
             orderId: payload?.data?.order?.order_id,
         });
+        const linkData = payload?.data;
         const orderData = payload?.data?.order;
         const paymentData = payload?.data?.payment;
-        const orderTags = orderData?.order_tags || {};
-        const businessId = orderTags.businessId;
+        const linkNotes = linkData?.link_notes || orderData?.order_tags || {};
+        const businessId = linkNotes.businessId || orderData?.order_tags?.businessId;
         if (!businessId) {
             functions.logger.warn('cashfree_webhook_missing_business_id', { payload });
             res.status(200).send('OK (ignored - no businessId tag)');
             return;
         }
         // Verify webhook signature if secret key is present
-        // Check if business explicitly disabled online collection
-        const bizSettingsSnap = await db.doc(`businesses/${businessId}/settings/cashfree`).get();
-        if (bizSettingsSnap.exists && bizSettingsSnap.data()?.enabled === false) {
-            throw new functions.https.HttpsError('failed-precondition', 'Online UPI collection is currently paused by this property.');
-        }
         const credentials = await getPlatformCashfreeCredentials(businessId);
         if (signature && timestamp) {
             const isValid = verifyCashfreeWebhookSignature(signature, rawBody, timestamp, credentials.secretKey);
@@ -363,10 +363,12 @@ exports.cashfreePaymentWebhook = functions
             }
         }
         // Check if event is successful payment
-        const paymentStatus = paymentData?.payment_status || orderData?.order_status;
-        if (paymentStatus === 'SUCCESS' || payload.type === 'PAYMENT_SUCCESS_WEBHOOK') {
-            const enrollmentRequestId = orderTags.enrollmentRequestId;
-            const rentInvoiceId = orderTags.rentInvoiceId;
+        const linkStatus = linkData?.link_status;
+        const paymentStatus = paymentData?.payment_status || orderData?.order_status || orderData?.transaction_status;
+        const isSuccess = linkStatus === 'PAID' || paymentStatus === 'SUCCESS' || payload.type === 'PAYMENT_SUCCESS_WEBHOOK';
+        if (isSuccess) {
+            const enrollmentRequestId = linkNotes.enrollmentRequestId;
+            const rentInvoiceId = linkNotes.rentInvoiceId;
             // 1. Mark Enrollment as Confirmed
             if (enrollmentRequestId) {
                 const enrollRef = db.doc(`enrollmentRequests/${enrollmentRequestId}`);
