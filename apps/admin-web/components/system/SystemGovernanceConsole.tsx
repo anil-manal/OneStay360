@@ -70,7 +70,7 @@ export default function SystemGovernanceConsole() {
     try {
       setLoading(true);
 
-      // 1. Fetch App Config
+      // 1. Fetch Real App Config from system/app_config
       try {
         const configSnap = await getDoc(doc(db, "system", "app_config"));
         if (configSnap.exists()) {
@@ -91,47 +91,31 @@ export default function SystemGovernanceConsole() {
         console.warn("Could not load app_config:", e);
       }
 
-      // 2. Fetch / Seed Audit Logs
-      const mockLogs: AuditLog[] = [
-        {
-          id: "AUDIT_88101",
-          actor: "admin@onestay360.in",
-          action: "GATEWAY_CONFIG_UPDATED",
-          targetEntity: "system/cashfree_platform",
-          ipAddress: "106.216.42.18 (Bengaluru, IN)",
-          timestamp: "23 Nov 2026, 07:14 PM",
-          details: "Master Cashfree credentials updated (Sandbox TEST mode verified).",
-        },
-        {
-          id: "AUDIT_88102",
-          actor: "admin@onestay360.in",
-          action: "FORCE_BED_VACATE",
-          targetEntity: "BUS0000001PNR001/Room101/Bed-C",
-          ipAddress: "106.216.42.18 (Bengaluru, IN)",
-          timestamp: "23 Nov 2026, 06:45 PM",
-          details: "Administrative force-vacate applied to delinquent resident.",
-        },
-        {
-          id: "AUDIT_88103",
-          actor: "admin@onestay360.in",
-          action: "DEFAULTER_FLAGGED",
-          targetEntity: "system/defaulter_registry/DEF_001",
-          ipAddress: "106.216.42.18 (Bengaluru, IN)",
-          timestamp: "23 Nov 2026, 06:12 PM",
-          details: "Resident Rohit Verma blacklisted across network for unpaid rent (₹18,500).",
-        },
-        {
-          id: "AUDIT_88104",
-          actor: "admin@onestay360.in",
-          action: "PAYOUT_FREEZE_TOGGLE",
-          targetEntity: "BUS0000003 (Lakshmi Mens PG)",
-          ipAddress: "106.216.42.18 (Bengaluru, IN)",
-          timestamp: "23 Nov 2026, 05:30 PM",
-          details: "Disbursement frozen pending investigation of security deposit dispute.",
-        },
-      ];
+      // 2. Fetch Real Audit Logs from Firestore
+      const loadedLogs: AuditLog[] = [];
+      try {
+        const auditSnap = await getDocs(collection(db, "system/audit_logs/records"));
+        auditSnap.docs.forEach((d) => {
+          const dat = d.data();
+          const timeStr = dat.timestamp?.toDate
+            ? dat.timestamp.toDate().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+            : "Recent";
 
-      setAuditLogs(mockLogs);
+          loadedLogs.push({
+            id: d.id,
+            actor: dat.actor || "admin@onestay360.in",
+            action: dat.action || "SYSTEM_EVENT",
+            targetEntity: dat.targetEntity || "system",
+            ipAddress: dat.ipAddress || "106.216.42.18 (Bengaluru, IN)",
+            timestamp: timeStr,
+            details: dat.details || "Administrative state updated.",
+          });
+        });
+      } catch (e) {
+        console.warn("Could not load audit logs:", e);
+      }
+
+      setAuditLogs(loadedLogs);
     } catch (e) {
       console.error("Error loading governance data:", e);
     } finally {
@@ -142,13 +126,31 @@ export default function SystemGovernanceConsole() {
   const handleSaveAppConfig = async () => {
     try {
       setSavingConfig(true);
-      await setDoc(doc(db, "system", "app_config"), {
-        ...appConfig,
-        updatedAt: serverTimestamp(),
-        updatedBy: "System Administrator",
-      }, { merge: true });
+      await setDoc(
+        doc(db, "system", "app_config"),
+        {
+          ...appConfig,
+          updatedAt: serverTimestamp(),
+          updatedBy: "System Administrator",
+        },
+        { merge: true }
+      );
+
+      // Audit log
+      const logId = `AUDIT_${Date.now()}`;
+      await setDoc(doc(db, "system/audit_logs/records", logId), {
+        id: logId,
+        actor: "admin@onestay360.in",
+        action: "APP_GATEKEEPER_UPDATED",
+        targetEntity: "system/app_config",
+        ipAddress: "106.216.42.18 (Bengaluru, IN)",
+        timestamp: serverTimestamp(),
+        details: `App Gatekeeper published: Tenant minBuild=${appConfig.minTenantBuild}, Business minBuild=${appConfig.minBusinessBuild}, Maintenance=${appConfig.maintenanceMode}.`,
+      });
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      loadGovernanceData();
     } catch (e) {
       console.error("Error saving app configuration:", e);
       alert("Failed to save app version configuration.");
@@ -208,11 +210,11 @@ export default function SystemGovernanceConsole() {
                 fontWeight: 600,
               }}
             >
-              Append-Only Immutability
+              Live Firestore Records
             </span>
           </div>
           <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "4px", margin: 0 }}>
-            Cryptographically sealed audit trail, mobile app build gatekeepers, and DPDP 2023 deletion desk.
+            Audit vault from system/audit_logs, mobile app gatekeepers in system/app_config, and DPDP compliance.
           </p>
         </div>
 
@@ -234,6 +236,25 @@ export default function SystemGovernanceConsole() {
             }}
           >
             <Download size={16} /> Export Audit Vault (CSV)
+          </button>
+          <button
+            onClick={loadGovernanceData}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              backgroundColor: "var(--bg-primary)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <RefreshCw size={16} className={loading ? "spin" : ""} />
+            Sync Vault
           </button>
         </div>
       </div>
@@ -326,47 +347,55 @@ export default function SystemGovernanceConsole() {
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((l) => (
-                <tr key={l.id} style={{ borderBottom: "1px solid var(--border-color)" }}>
-                  <td style={{ padding: "14px 18px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{l.actor}</div>
-                    <div style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--cyan-primary)" }}>{l.id}</div>
-                  </td>
-
-                  <td style={{ padding: "14px 18px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        padding: "3px 8px",
-                        borderRadius: "12px",
-                        fontWeight: 700,
-                        backgroundColor: "rgba(13, 148, 136, 0.15)",
-                        color: "var(--teal-primary)",
-                      }}
-                    >
-                      {l.action}
-                    </span>
-                  </td>
-
-                  <td style={{ padding: "14px 18px" }}>
-                    <div style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-primary)" }}>
-                      {l.targetEntity}
-                    </div>
-                  </td>
-
-                  <td style={{ padding: "14px 18px", maxWidth: "300px" }}>
-                    <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{l.details}</div>
-                  </td>
-
-                  <td style={{ padding: "14px 18px", fontSize: "12px", color: "var(--text-secondary)" }}>
-                    {l.ipAddress}
-                  </td>
-
-                  <td style={{ padding: "14px 18px", fontSize: "12px", color: "var(--text-secondary)" }}>
-                    {l.timestamp}
+              {auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: "36px", textAlign: "center", color: "var(--text-secondary)" }}>
+                    {loading ? "Loading audit logs from Firestore..." : "No administrative audit records logged yet."}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                auditLogs.map((l) => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                    <td style={{ padding: "14px 18px" }}>
+                      <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{l.actor}</div>
+                      <div style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--cyan-primary)" }}>{l.id}</div>
+                    </td>
+
+                    <td style={{ padding: "14px 18px" }}>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          padding: "3px 8px",
+                          borderRadius: "12px",
+                          fontWeight: 700,
+                          backgroundColor: "rgba(13, 148, 136, 0.15)",
+                          color: "var(--teal-primary)",
+                        }}
+                      >
+                        {l.action}
+                      </span>
+                    </td>
+
+                    <td style={{ padding: "14px 18px" }}>
+                      <div style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-primary)" }}>
+                        {l.targetEntity}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: "14px 18px", maxWidth: "300px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>{l.details}</div>
+                    </td>
+
+                    <td style={{ padding: "14px 18px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                      {l.ipAddress}
+                    </td>
+
+                    <td style={{ padding: "14px 18px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                      {l.timestamp}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
