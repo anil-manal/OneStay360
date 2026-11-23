@@ -670,7 +670,13 @@ export default function PropertyConsole() {
                         style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover" }}
                       />
                       <div>
-                        <strong>{prop.name}</strong>
+                        <Link
+                          href={`/admin/property/${prop.id}`}
+                          style={{ color: "#0F172A", textDecoration: "none", fontWeight: 700 }}
+                          title="Open property details & 360 bed matrix"
+                        >
+                          {prop.name} &rarr;
+                        </Link>
                         <span className="subtext" style={{ display: "block" }}>{prop.address} &bull; ID: {prop.id}</span>
                       </div>
                     </div>
@@ -680,9 +686,9 @@ export default function PropertyConsole() {
                   </td>
                   <td>
                     <Link
-                      href={`/admin/business/${prop.businessId}/properties`}
+                      href={`/admin/business/${prop.businessId}`}
                       style={{ color: "var(--teal-primary)", textDecoration: "none", fontWeight: 700 }}
-                      title="View all properties in this chain"
+                      title="View all properties and business features in this chain"
                     >
                       {prop.businessName} &rarr;
                     </Link>
@@ -719,14 +725,32 @@ export default function PropertyConsole() {
                       <span title="Police Intimation" style={{ color: prop.policeIntimated ? "#10B981" : "#EF4444", fontSize: "12px", fontWeight: "bold" }}>👮</span>
                     </div>
                   </td>
-                  <td>
-                    <button
-                      className="tableActionBtn"
-                      onClick={() => handleOpenDrawer(prop)}
-                      style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                    >
-                      <Sliders size={14} /> Manage Operations
-                    </button>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <Link
+                        href={`/admin/property/${prop.id}`}
+                        className="btnPrimary"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "12px",
+                          padding: "6px 12px",
+                          textDecoration: "none",
+                          borderRadius: "6px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <Layers size={13} /> Property Details &rarr;
+                      </Link>
+                      <button
+                        className="tableActionBtn"
+                        onClick={() => handleOpenDrawer(prop)}
+                        style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                      >
+                        <Sliders size={14} /> Quick Drawer
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -739,7 +763,7 @@ export default function PropertyConsole() {
       {selectedProp && (
         <div
           className="modalOverlay"
-          style={{ justifyContent: "flex-end", background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(4px)" }}
+          style={{ justifyContent: "flex-end", background: "rgba(15, 23, 42, 0.5)", backdropFilter: "blur(4px)" }}
           onClick={() => setSelectedProp(null)}
         >
           <div
@@ -747,11 +771,11 @@ export default function PropertyConsole() {
               width: "100%",
               maxWidth: "850px",
               height: "100vh",
-              background: "#0F172A",
+              background: "#FFFFFF",
               borderLeft: "1px solid var(--border-color)",
               padding: "32px",
               overflowY: "auto",
-              boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
+              boxShadow: "-10px 0 30px rgba(0,0,0,0.15)",
               display: "flex",
               flexDirection: "column",
             }}
@@ -763,12 +787,30 @@ export default function PropertyConsole() {
                 <span className="badge active" style={{ marginBottom: "6px", display: "inline-block" }}>
                   {selectedProp.city.toUpperCase()} &bull; {selectedProp.cityCode}
                 </span>
-                <h3 style={{ fontSize: "22px", margin: "4px 0", color: "#FFFFFF" }}>{selectedProp.name}</h3>
-                <p className="subtext">{selectedProp.address} &bull; Managed by <strong>{selectedProp.businessName}</strong></p>
+                <h3 style={{ fontSize: "22px", margin: "4px 0", color: "#0F172A" }}>{selectedProp.name}</h3>
+                <p className="subtext">{selectedProp.address} &bull; Managed by <strong style={{ color: "#0F172A" }}>{selectedProp.businessName}</strong></p>
               </div>
-              <button className="closeBtn" onClick={() => setSelectedProp(null)}>
-                <XCircle size={24} />
-              </button>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <Link
+                  href={`/admin/property/${selectedProp.id}`}
+                  className="btnPrimary"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "12px",
+                    padding: "8px 14px",
+                    textDecoration: "none",
+                    borderRadius: "6px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <Layers size={14} /> Full Property Details Page &rarr;
+                </Link>
+                <button className="closeBtn" onClick={() => setSelectedProp(null)}>
+                  <XCircle size={24} />
+                </button>
+              </div>
             </div>
 
             {/* Navigation Tabs */}

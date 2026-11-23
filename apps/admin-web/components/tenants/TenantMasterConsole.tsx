@@ -1032,14 +1032,14 @@ export default function TenantMasterConsole() {
             style={{
               width: "100%",
               maxWidth: "850px",
-              backgroundColor: "#0F172A",
+              backgroundColor: "#FFFFFF",
               height: "100%",
               overflowY: "auto",
               padding: "32px",
               display: "flex",
               flexDirection: "column",
               borderLeft: "1px solid var(--border-color)",
-              boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
+              boxShadow: "-10px 0 30px rgba(0,0,0,0.15)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1057,7 +1057,7 @@ export default function TenantMasterConsole() {
                 >
                   Resident 360° Living Dossier
                 </span>
-                <h2 style={{ fontSize: "24px", fontWeight: 700, margin: "4px 0", color: "#FFFFFF" }}>{selectedTenant.name}</h2>
+                <h2 style={{ fontSize: "24px", fontWeight: 700, margin: "4px 0", color: "#0F172A" }}>{selectedTenant.name}</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
                   <span>{selectedTenant.phone}</span> &bull; <span>{selectedTenant.email}</span> &bull; Room {selectedTenant.roomNumber} ({selectedTenant.propertyName})
                 </div>

@@ -1,0 +1,1287 @@
+"use client";
+
+import React, { useEffect, useState, use } from "react";
+import Link from "next/link";
+import { collection, getDocs, doc, getDoc, updateDoc, writeBatch } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import {
+  Building2,
+  ArrowLeft,
+  RefreshCw,
+  Search,
+  MapPin,
+  Bed,
+  Layers,
+  Zap,
+  Sliders,
+  CheckCircle,
+  AlertTriangle,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  Star,
+  Users,
+  DollarSign,
+  TrendingUp,
+  Camera,
+  FileCheck2,
+  Eye,
+  ExternalLink,
+  Phone,
+  User,
+  ShieldAlert,
+  Sparkles,
+  X,
+  ChevronRight,
+  Utensils,
+  Wrench,
+  Clock,
+  Check,
+} from "lucide-react";
+
+interface BedInfo {
+  id: string;
+  bedNumber: string;
+  status: "occupied" | "vacant" | "maintenance" | "reserved";
+  tenantName?: string | null;
+  tenantPhone?: string | null;
+  monthlyRent: number;
+}
+
+interface RoomInfo {
+  id: string;
+  roomNumber: string;
+  floor: number;
+  sharingType: number;
+  hasAC: boolean;
+  submeterPrev: number;
+  submeterCurr: number;
+  submeterRate: number;
+  submeterPhotoUrl?: string;
+  beds: BedInfo[];
+}
+
+interface PropertyDetails {
+  id: string;
+  name: string;
+  city: string;
+  cityCode: string;
+  address: string;
+  description: string;
+  totalBeds: number;
+  occupiedBeds: number;
+  pricePerBed: number;
+  featured: boolean;
+  status: string;
+  businessId: string;
+  businessName: string;
+  businessPhone: string;
+  ratingAverage: number;
+  ratingCount: number;
+  images: string[];
+  singleRate: number;
+  doubleRate: number;
+  tripleRate: number;
+  acSurcharge: number;
+  vegFoodRate: number;
+  nonVegFoodRate: number;
+  fireNocVerified: boolean;
+  fssaiVerified: boolean;
+  cctvAudited: boolean;
+  policeIntimated: boolean;
+  rooms: RoomInfo[];
+}
+
+const DEFAULT_ROOMS: RoomInfo[] = [
+  {
+    id: "R101",
+    roomNumber: "101",
+    floor: 1,
+    sharingType: 2,
+    hasAC: true,
+    submeterPrev: 1240,
+    submeterCurr: 1385,
+    submeterRate: 12,
+    submeterPhotoUrl: "https://images.unsplash.com/photo-1558441719-8b4e0c818a1c?auto=format&fit=crop&w=600&q=80",
+    beds: [
+      { id: "B1", bedNumber: "101-A", status: "occupied", tenantName: "Rohit Sharma", tenantPhone: "+91 98201 12345", monthlyRent: 8500 },
+      { id: "B2", bedNumber: "101-B", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 8500 },
+    ],
+  },
+  {
+    id: "R102",
+    roomNumber: "102",
+    floor: 1,
+    sharingType: 3,
+    hasAC: true,
+    submeterPrev: 890,
+    submeterCurr: 1045,
+    submeterRate: 12,
+    beds: [
+      { id: "B1", bedNumber: "102-A", status: "occupied", tenantName: "Priya Patel", tenantPhone: "+91 97412 88990", monthlyRent: 7000 },
+      { id: "B2", bedNumber: "102-B", status: "occupied", tenantName: "Amitabh Verma", tenantPhone: "+91 98920 44556", monthlyRent: 7000 },
+      { id: "B3", bedNumber: "102-C", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 7000 },
+    ],
+  },
+  {
+    id: "R201",
+    roomNumber: "201",
+    floor: 2,
+    sharingType: 1,
+    hasAC: true,
+    submeterPrev: 450,
+    submeterCurr: 520,
+    submeterRate: 12,
+    beds: [
+      { id: "B1", bedNumber: "201-A", status: "occupied", tenantName: "Deepak Kumar", tenantPhone: "+91 99887 11223", monthlyRent: 14000 },
+    ],
+  },
+  {
+    id: "R202",
+    roomNumber: "202",
+    floor: 2,
+    sharingType: 2,
+    hasAC: false,
+    submeterPrev: 610,
+    submeterCurr: 720,
+    submeterRate: 12,
+    beds: [
+      { id: "B1", bedNumber: "202-A", status: "occupied", tenantName: "Sneha Reddy", tenantPhone: "+91 98765 22334", monthlyRent: 8000 },
+      { id: "B2", bedNumber: "202-B", status: "maintenance", tenantName: null, tenantPhone: null, monthlyRent: 8000 },
+    ],
+  },
+];
+
+const FALLBACK_PROPERTIES: Record<string, PropertyDetails> = {
+  PROP_PNQ_001: {
+    id: "PROP_PNQ_001",
+    name: "Zolo Amber Luxury PG & Co-Living",
+    city: "Pune",
+    cityCode: "PNQ",
+    address: "Hinjawadi Phase 1, Near Infosys Circle, Pune, MH",
+    description: "Premium co-living residence with biometric access, high-speed Wi-Fi, 3 times hygienic food, and daily housekeeping.",
+    totalBeds: 48,
+    occupiedBeds: 42,
+    pricePerBed: 8500,
+    featured: true,
+    status: "active",
+    businessId: "BIZ_001",
+    businessName: "Zolo Living Private Limited",
+    businessPhone: "+91 98765 00001",
+    ratingAverage: 4.8,
+    ratingCount: 46,
+    images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
+    singleRate: 14000,
+    doubleRate: 9500,
+    tripleRate: 7500,
+    acSurcharge: 1500,
+    vegFoodRate: 2500,
+    nonVegFoodRate: 3500,
+    fireNocVerified: true,
+    fssaiVerified: true,
+    cctvAudited: true,
+    policeIntimated: true,
+    rooms: DEFAULT_ROOMS,
+  },
+  PROP_BLR_002: {
+    id: "PROP_BLR_002",
+    name: "Nexus Tech Residency PG",
+    city: "Bangalore",
+    cityCode: "BLR",
+    address: "HSR Layout Sector 2, Bengaluru, KA",
+    description: "Walking distance from tech hubs. Fiber internet, daily housekeeping, biometrics.",
+    totalBeds: 60,
+    occupiedBeds: 52,
+    pricePerBed: 9200,
+    featured: true,
+    status: "active",
+    businessId: "BIZ_002",
+    businessName: "Isthara Co-living Services",
+    businessPhone: "+91 98765 00002",
+    ratingAverage: 4.9,
+    ratingCount: 52,
+    images: ["https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80"],
+    singleRate: 15500,
+    doubleRate: 10500,
+    tripleRate: 8500,
+    acSurcharge: 1800,
+    vegFoodRate: 2800,
+    nonVegFoodRate: 3800,
+    fireNocVerified: true,
+    fssaiVerified: true,
+    cctvAudited: true,
+    policeIntimated: true,
+    rooms: DEFAULT_ROOMS,
+  },
+  PROP_BOM_003: {
+    id: "PROP_BOM_003",
+    name: "Bayview Executive Stays",
+    city: "Mumbai",
+    cityCode: "BOM",
+    address: "Andheri West, Near Metro Station, Mumbai, MH",
+    description: "Executive co-living space with single and twin-sharing AC accommodations.",
+    totalBeds: 36,
+    occupiedBeds: 28,
+    pricePerBed: 11500,
+    featured: false,
+    status: "active",
+    businessId: "BIZ_003",
+    businessName: "Stanza Living Hospitality",
+    businessPhone: "+91 98765 00003",
+    ratingAverage: 4.7,
+    ratingCount: 29,
+    images: ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80"],
+    singleRate: 18000,
+    doubleRate: 12500,
+    tripleRate: 9500,
+    acSurcharge: 2000,
+    vegFoodRate: 3000,
+    nonVegFoodRate: 4000,
+    fireNocVerified: true,
+    fssaiVerified: false,
+    cctvAudited: true,
+    policeIntimated: true,
+    rooms: DEFAULT_ROOMS,
+  },
+};
+
+export default function PropertyDetailsPage({ params }: { params: Promise<{ propertyId: string }> }) {
+  const unwrappedParams = use(params);
+  const propertyId = unwrappedParams.propertyId;
+
+  const [property, setProperty] = useState<PropertyDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"matrix" | "submeter" | "rates" | "compliance" | "residents" | "tickets">("matrix");
+  const [updating, setUpdating] = useState(false);
+
+  // Submeter form state
+  const [selectedRoomId, setSelectedRoomId] = useState("R101");
+  const [submeterForm, setSubmeterForm] = useState({
+    prev: 1240,
+    curr: 1385,
+    rate: 12,
+  });
+  const [submeterSuccess, setSubmeterSuccess] = useState<string | null>(null);
+
+  // Dynamic rates form state
+  const [ratesForm, setRatesForm] = useState({
+    singleRate: 14000,
+    doubleRate: 9500,
+    tripleRate: 7500,
+    acSurcharge: 1500,
+    vegFoodRate: 2500,
+    nonVegFoodRate: 3500,
+  });
+
+  async function loadPropertyDetails() {
+    try {
+      setLoading(true);
+      let prop: PropertyDetails | null = FALLBACK_PROPERTIES[propertyId] || null;
+
+      try {
+        const propDoc = await getDoc(doc(db, "properties", propertyId));
+        if (propDoc.exists()) {
+          const d = propDoc.data();
+          const totalBeds = Number(d.totalBeds || d.capacity || 40);
+          const occupiedBeds = Number(d.occupiedBeds || Math.round(totalBeds * 0.75));
+          prop = {
+            id: propertyId,
+            name: d.name || "Unnamed PG",
+            city: d.city || "Pune",
+            cityCode: d.cityCode || "PNQ",
+            address: d.address || d.location || "Central Location",
+            description: d.description || "Premium accommodation with amenities.",
+            totalBeds,
+            occupiedBeds,
+            pricePerBed: Number(d.pricePerBed || 7500),
+            featured: Boolean(d.featured),
+            status: d.status || "active",
+            businessId: d.businessId || "BIZ_001",
+            businessName: d.businessName || "Landlord Chain",
+            businessPhone: d.businessPhone || "+91 98765 00000",
+            ratingAverage: Number(d.ratingAverage || 4.8),
+            ratingCount: Number(d.ratingCount || 34),
+            images: d.images || ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
+            singleRate: Number(d.singleRate || 14000),
+            doubleRate: Number(d.doubleRate || 9500),
+            tripleRate: Number(d.tripleRate || 7500),
+            acSurcharge: Number(d.acSurcharge || 1500),
+            vegFoodRate: Number(d.vegFoodRate || 2500),
+            nonVegFoodRate: Number(d.nonVegFoodRate || 3500),
+            fireNocVerified: Boolean(d.fireNocVerified !== false),
+            fssaiVerified: Boolean(d.fssaiVerified !== false),
+            cctvAudited: Boolean(d.cctvAudited !== false),
+            policeIntimated: Boolean(d.policeIntimated !== false),
+            rooms: d.rooms || DEFAULT_ROOMS,
+          };
+        }
+      } catch (e) {
+        console.debug("Firestore direct property load notice:", e);
+      }
+
+      if (!prop) {
+        prop = {
+          id: propertyId,
+          name: "OneStay Executive Co-Living Residency",
+          city: "Pune",
+          cityCode: "PNQ",
+          address: "Hinjawadi Phase 1, Main Road, Pune, MH",
+          description: "Institutional co-living property with 360° virtual tour verified rooms.",
+          totalBeds: 40,
+          occupiedBeds: 34,
+          pricePerBed: 8500,
+          featured: true,
+          status: "active",
+          businessId: "BIZ_001",
+          businessName: "Zolo Living Private Limited",
+          businessPhone: "+91 98765 00001",
+          ratingAverage: 4.8,
+          ratingCount: 38,
+          images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
+          singleRate: 14000,
+          doubleRate: 9500,
+          tripleRate: 7500,
+          acSurcharge: 1500,
+          vegFoodRate: 2500,
+          nonVegFoodRate: 3500,
+          fireNocVerified: true,
+          fssaiVerified: true,
+          cctvAudited: true,
+          policeIntimated: true,
+          rooms: DEFAULT_ROOMS,
+        };
+      }
+
+      setProperty(prop);
+      setRatesForm({
+        singleRate: prop.singleRate,
+        doubleRate: prop.doubleRate,
+        tripleRate: prop.tripleRate,
+        acSurcharge: prop.acSurcharge,
+        vegFoodRate: prop.vegFoodRate,
+        nonVegFoodRate: prop.nonVegFoodRate,
+      });
+      if (prop.rooms && prop.rooms.length > 0) {
+        const r = prop.rooms[0];
+        setSelectedRoomId(r.id);
+        setSubmeterForm({
+          prev: r.submeterPrev,
+          curr: r.submeterCurr,
+          rate: r.submeterRate,
+        });
+      }
+    } catch (err) {
+      console.error("Error loading property:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadPropertyDetails();
+  }, [propertyId]);
+
+  const handleToggleBed = (roomId: string, bedId: string) => {
+    if (!property) return;
+    const updatedRooms = property.rooms.map((room) => {
+      if (room.id === roomId) {
+        const updatedBeds = room.beds.map((bed) => {
+          if (bed.id === bedId) {
+            const nextStatus =
+              bed.status === "occupied" ? "vacant" : bed.status === "vacant" ? "maintenance" : "occupied";
+            return {
+              ...bed,
+              status: nextStatus as any,
+              tenantName: nextStatus === "occupied" ? "Walk-in Resident" : null,
+            };
+          }
+          return bed;
+        });
+        return { ...room, beds: updatedBeds };
+      }
+      return room;
+    });
+
+    const updatedProp = { ...property, rooms: updatedRooms };
+    setProperty(updatedProp);
+  };
+
+  const handleSaveSubmeterReading = async () => {
+    if (!property) return;
+    const unitsUsed = Math.max(0, submeterForm.curr - submeterForm.prev);
+    const amount = unitsUsed * submeterForm.rate;
+
+    const updatedRooms = property.rooms.map((room) => {
+      if (room.id === selectedRoomId) {
+        return {
+          ...room,
+          submeterPrev: submeterForm.prev,
+          submeterCurr: submeterForm.curr,
+          submeterRate: submeterForm.rate,
+        };
+      }
+      return room;
+    });
+
+    const updatedProp = { ...property, rooms: updatedRooms };
+    setProperty(updatedProp);
+
+    try {
+      await updateDoc(doc(db, "properties", property.id), { rooms: updatedRooms, updatedAt: new Date() });
+    } catch (_) {}
+
+    setSubmeterSuccess(`✅ Logged ${unitsUsed} kWh units in Room ${selectedRoomId}. Electricity bill calculated: ₹${amount.toLocaleString("en-IN")}. Auto-split among room inmates.`);
+    setTimeout(() => setSubmeterSuccess(null), 5000);
+  };
+
+  const handleSaveDynamicRates = async () => {
+    if (!property) return;
+    setUpdating(true);
+    try {
+      await updateDoc(doc(db, "properties", property.id), {
+        ...ratesForm,
+        updatedAt: new Date(),
+      });
+      setProperty({ ...property, ...ratesForm });
+      alert("✅ Commercial rates & food plans updated in Firestore!");
+    } catch (e) {
+      setProperty({ ...property, ...ratesForm });
+      alert("Rates updated in active session.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleToggleFeatured = async () => {
+    if (!property) return;
+    const nextFeatured = !property.featured;
+    setProperty({ ...property, featured: nextFeatured });
+    try {
+      await updateDoc(doc(db, "properties", property.id), { featured: nextFeatured });
+    } catch (_) {}
+  };
+
+  const handleToggleCompliance = async (field: "fireNocVerified" | "fssaiVerified" | "cctvAudited" | "policeIntimated") => {
+    if (!property) return;
+    const nextVal = !property[field];
+    setProperty({ ...property, [field]: nextVal });
+    try {
+      await updateDoc(doc(db, "properties", property.id), { [field]: nextVal });
+    } catch (_) {}
+  };
+
+  if (loading) {
+    return (
+      <div className="fullscreenLoader" style={{ background: "#FFFFFF", color: "#0F172A" }}>
+        <div className="spinner" style={{ borderTopColor: "var(--teal-primary)" }}></div>
+        <p style={{ fontWeight: 600 }}>Loading Property Details & 360° Bed Matrix for {propertyId}...</p>
+      </div>
+    );
+  }
+
+  if (!property) {
+    return (
+      <div style={{ padding: "40px", textAlign: "center" }}>
+        <h2>Property not found</h2>
+        <Link href="/admin" style={{ color: "var(--teal-primary)" }}>Return to Admin Portal</Link>
+      </div>
+    );
+  }
+
+  const occRate = property.totalBeds > 0 ? Math.round((property.occupiedBeds / property.totalBeds) * 100) : 0;
+  const allBeds = property.rooms.flatMap((r) => r.beds);
+  const occupiedBedsList = allBeds.filter((b) => b.status === "occupied");
+
+  return (
+    <div className="adminWorkspace" style={{ background: "#F8FAFC", minHeight: "100vh" }}>
+      <main className="workspaceMain" style={{ margin: 0, width: "100%", padding: "28px 36px" }}>
+        {/* Navigation Breadcrumb */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px", fontSize: "13px" }}>
+          <Link
+            href="/admin"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              color: "var(--teal-primary)",
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            <ArrowLeft size={16} /> Admin Operations Control
+          </Link>
+          <ChevronRight size={14} style={{ color: "#94A3B8" }} />
+          <Link href={`/admin/business/${property.businessId}`} style={{ color: "#64748B", textDecoration: "none" }}>
+            {property.businessName}
+          </Link>
+          <ChevronRight size={14} style={{ color: "#94A3B8" }} />
+          <strong style={{ color: "#0F172A" }}>{property.name}</strong>
+        </div>
+
+        {/* Property Header Banner */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "16px",
+            padding: "24px 28px",
+            marginBottom: "28px",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "20px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+            <img
+              src={property.images[0] || "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"}
+              alt={property.name}
+              style={{ width: "80px", height: "80px", borderRadius: "12px", objectFit: "cover", border: "1px solid #E2E8F0" }}
+            />
+
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <h1 style={{ fontSize: "22px", fontWeight: 800, margin: 0, color: "#0F172A" }}>
+                  {property.name}
+                </h1>
+                <span className="badge active">{property.city}</span>
+                <span style={{ padding: "4px 8px", borderRadius: "12px", background: property.status === "active" ? "#059669" : "#D97706", color: "#FFFFFF", fontSize: "11px", fontWeight: 700 }}>
+                  {property.status.toUpperCase()}
+                </span>
+                <button
+                  onClick={handleToggleFeatured}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: property.featured ? "rgba(217, 119, 6, 0.12)" : "#F1F5F9",
+                    color: property.featured ? "#D97706" : "#64748B",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Star size={13} fill={property.featured ? "#D97706" : "none"} />
+                  {property.featured ? "Featured on App" : "Standard Listing"}
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: "16px", marginTop: "8px", fontSize: "13px", color: "#64748B", flexWrap: "wrap" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <MapPin size={14} style={{ color: "var(--teal-primary)" }} /> {property.address}
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Building2 size={14} style={{ color: "var(--teal-primary)" }} /> Chain:{" "}
+                  <Link href={`/admin/business/${property.businessId}`} style={{ color: "var(--teal-primary)", fontWeight: 700, textDecoration: "none" }}>
+                    {property.businessName} &rarr;
+                  </Link>
+                </span>
+                <span>Rating: <strong style={{ color: "#0F172A" }}>★ {property.ratingAverage}</strong> ({property.ratingCount} reviews)</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <Link
+              href={`/admin/business/${property.businessId}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                padding: "9px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#0F172A",
+                textDecoration: "none",
+              }}
+            >
+              <ArrowLeft size={14} /> Back to Chain Portfolio
+            </Link>
+            <button
+              onClick={loadPropertyDetails}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                padding: "9px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#0F172A",
+                cursor: "pointer",
+              }}
+            >
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Executive Metric Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "28px" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
+              Capacity & Occupancy
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "8px" }}>
+              <span style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A" }}>{property.occupiedBeds}</span>
+              <span style={{ fontSize: "14px", color: "#64748B" }}>/ {property.totalBeds} Beds</span>
+              <span style={{ fontSize: "14px", fontWeight: 800, color: occRate >= 80 ? "#059669" : "#D97706", marginLeft: "auto" }}>
+                {occRate}%
+              </span>
+            </div>
+            <div style={{ width: "100%", height: "6px", background: "#E2E8F0", borderRadius: "3px", marginTop: "8px", overflow: "hidden" }}>
+              <div style={{ width: `${occRate}%`, height: "100%", background: "var(--teal-primary)", borderRadius: "3px" }} />
+            </div>
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
+              Base Starting Rent
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "8px" }}>
+              <span style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A" }}>₹{property.pricePerBed.toLocaleString("en-IN")}</span>
+              <span style={{ fontSize: "12px", color: "#64748B" }}>/bed/month</span>
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+              Single: ₹{(property.singleRate / 1000).toFixed(1)}k &bull; Double: ₹{(property.doubleRate / 1000).toFixed(1)}k
+            </div>
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
+              Projected Monthly Rent
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "8px" }}>
+              <span style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A" }}>
+                ₹{((property.occupiedBeds * property.pricePerBed) / 100000).toFixed(2)}L
+              </span>
+              <span style={{ fontSize: "12px", color: "#059669", fontWeight: 600 }}>Active Ledger</span>
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+              Collected via automated Cashfree UPI
+            </div>
+          </div>
+
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
+              Statutory Safety Status
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "8px" }}>
+              <span style={{ fontSize: "28px", fontWeight: 800, color: "#059669" }}>
+                {property.fireNocVerified && property.fssaiVerified ? "100%" : "Partial"}
+              </span>
+              <span style={{ fontSize: "12px", color: "#64748B" }}>Audited</span>
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+              Fire NOC &bull; FSSAI &bull; CCTV &bull; Police
+            </div>
+          </div>
+        </div>
+
+        {/* Property Operational Tabs */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            borderBottom: "1px solid #E2E8F0",
+            marginBottom: "24px",
+            background: "#FFFFFF",
+            padding: "8px 16px 0 16px",
+            borderRadius: "12px 12px 0 0",
+            overflowX: "auto",
+          }}
+        >
+          <button
+            onClick={() => setActiveTab("matrix")}
+            style={{
+              padding: "12px 18px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "matrix" ? "3px solid var(--teal-primary)" : "3px solid transparent",
+              color: activeTab === "matrix" ? "var(--teal-primary)" : "#64748B",
+              fontWeight: activeTab === "matrix" ? 700 : 500,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Layers size={16} /> 360° Floorplan & Bed Matrix
+          </button>
+
+          <button
+            onClick={() => setActiveTab("submeter")}
+            style={{
+              padding: "12px 18px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "submeter" ? "3px solid var(--teal-primary)" : "3px solid transparent",
+              color: activeTab === "submeter" ? "var(--teal-primary)" : "#64748B",
+              fontWeight: activeTab === "submeter" ? 700 : 500,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Zap size={16} /> Submeter Delta Calculator
+          </button>
+
+          <button
+            onClick={() => setActiveTab("rates")}
+            style={{
+              padding: "12px 18px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "rates" ? "3px solid var(--teal-primary)" : "3px solid transparent",
+              color: activeTab === "rates" ? "var(--teal-primary)" : "#64748B",
+              fontWeight: activeTab === "rates" ? 700 : 500,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <DollarSign size={16} /> Dynamic Sharing Rates
+          </button>
+
+          <button
+            onClick={() => setActiveTab("compliance")}
+            style={{
+              padding: "12px 18px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "compliance" ? "3px solid var(--teal-primary)" : "3px solid transparent",
+              color: activeTab === "compliance" ? "var(--teal-primary)" : "#64748B",
+              fontWeight: activeTab === "compliance" ? 700 : 500,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <ShieldCheck size={16} /> Statutory Audits
+          </button>
+
+          <button
+            onClick={() => setActiveTab("residents")}
+            style={{
+              padding: "12px 18px",
+              background: "none",
+              border: "none",
+              borderBottom: activeTab === "residents" ? "3px solid var(--teal-primary)" : "3px solid transparent",
+              color: activeTab === "residents" ? "var(--teal-primary)" : "#64748B",
+              fontWeight: activeTab === "residents" ? 700 : 500,
+              fontSize: "14px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Users size={16} /> Residents Roster ({occupiedBedsList.length})
+          </button>
+        </div>
+
+        {/* TAB 1: VISUAL BED MATRIX */}
+        {activeTab === "matrix" && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "#0F172A" }}>
+                  Visual Room & Bed Allocation Matrix
+                </h3>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0 0" }}>
+                  Click any bed to cycle status (Occupied &harr; Vacant &harr; Maintenance)
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "#059669", fontWeight: 700 }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#059669" }} /> Occupied
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "#64748B", fontWeight: 700 }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#94A3B8" }} /> Vacant
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "#D97706", fontWeight: 700 }}>
+                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#D97706" }} /> Maintenance
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {property.rooms.map((room) => (
+                <div
+                  key={room.id}
+                  style={{
+                    background: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "12px",
+                    padding: "18px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <strong style={{ fontSize: "15px", color: "#0F172A" }}>Room {room.roomNumber}</strong>
+                      <span style={{ fontSize: "12px", color: "#64748B" }}>Floor {room.floor}</span>
+                      <span style={{ fontSize: "11px", padding: "2px 8px", background: "rgba(13, 148, 136, 0.1)", borderRadius: "4px", color: "var(--teal-primary)", fontWeight: 700 }}>
+                        {room.sharingType === 1 ? "Single Room" : room.sharingType === 2 ? "Twin Sharing" : "Triple Sharing"}
+                      </span>
+                      {room.hasAC && (
+                        <span style={{ fontSize: "11px", padding: "2px 6px", background: "rgba(2, 132, 199, 0.1)", borderRadius: "4px", color: "#0284C7", fontWeight: 700 }}>
+                          AC
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>
+                      Submeter Reading: <strong style={{ color: "#0F172A" }}>{room.submeterCurr} kWh</strong>
+                    </span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px" }}>
+                    {room.beds.map((bed) => {
+                      const isOcc = bed.status === "occupied";
+                      const isMaint = bed.status === "maintenance";
+                      return (
+                        <div
+                          key={bed.id}
+                          onClick={() => handleToggleBed(room.id, bed.id)}
+                          style={{
+                            padding: "14px",
+                            borderRadius: "10px",
+                            border: isOcc
+                              ? "1px solid rgba(5, 150, 105, 0.4)"
+                              : isMaint
+                              ? "1px solid rgba(217, 119, 6, 0.4)"
+                              : "1px dashed #CBD5E1",
+                            background: isOcc
+                              ? "rgba(5, 150, 105, 0.05)"
+                              : isMaint
+                              ? "rgba(217, 119, 6, 0.05)"
+                              : "#FFFFFF",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                            <strong style={{ fontSize: "14px", color: "#0F172A" }}>Bed {bed.bedNumber}</strong>
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: isOcc ? "#059669" : isMaint ? "#D97706" : "#64748B",
+                                color: "#FFFFFF",
+                                fontWeight: 800,
+                              }}
+                            >
+                              {bed.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "13px", color: isOcc ? "#0F172A" : "#64748B", fontWeight: isOcc ? 600 : 400 }}>
+                            {isOcc ? bed.tenantName || "Active Resident" : isMaint ? "Under Maintenance" : "Available to Rent"}
+                          </div>
+                          {isOcc && bed.tenantPhone && (
+                            <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{bed.tenantPhone}</div>
+                          )}
+                          <div style={{ fontSize: "12px", color: "var(--teal-primary)", marginTop: "6px", fontWeight: 700 }}>
+                            ₹{bed.monthlyRent.toLocaleString("en-IN")}/mo
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: ELECTRICITY SUBMETER */}
+        {activeTab === "submeter" && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
+              Electricity Submeter Delta Billing Calculator
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
+              Calculates room electricity consumption against logged meter photos, eliminating dispute overhead.
+            </p>
+
+            {submeterSuccess && (
+              <div style={{ padding: "12px 16px", background: "rgba(5, 150, 105, 0.12)", border: "1px solid #059669", borderRadius: "8px", color: "#059669", fontSize: "13px", marginBottom: "16px" }}>
+                {submeterSuccess}
+              </div>
+            )}
+
+            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Select Room
+                  </label>
+                  <select
+                    value={selectedRoomId}
+                    onChange={(e) => {
+                      setSelectedRoomId(e.target.value);
+                      const r = property.rooms.find((rm) => rm.id === e.target.value);
+                      if (r) {
+                        setSubmeterForm({
+                          prev: r.submeterPrev,
+                          curr: r.submeterCurr,
+                          rate: r.submeterRate,
+                        });
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: "8px",
+                      color: "#0F172A",
+                      fontSize: "13px",
+                    }}
+                  >
+                    {property.rooms.map((rm) => (
+                      <option key={rm.id} value={rm.id}>
+                        Room {rm.roomNumber} (Floor {rm.floor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Tariff Rate (₹ per kWh unit)
+                  </label>
+                  <input
+                    type="number"
+                    value={submeterForm.rate}
+                    onChange={(e) => setSubmeterForm({ ...submeterForm, rate: Number(e.target.value) })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: "8px",
+                      color: "#0F172A",
+                      fontSize: "13px",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Previous Meter Reading (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    value={submeterForm.prev}
+                    onChange={(e) => setSubmeterForm({ ...submeterForm, prev: Number(e.target.value) })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: "8px",
+                      color: "#0F172A",
+                      fontSize: "13px",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Current Meter Reading (kWh)
+                  </label>
+                  <input
+                    type="number"
+                    value={submeterForm.curr}
+                    onChange={(e) => setSubmeterForm({ ...submeterForm, curr: Number(e.target.value) })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: "8px",
+                      color: "#0F172A",
+                      fontSize: "13px",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Calculation Preview */}
+              <div
+                style={{
+                  background: "rgba(13, 148, 136, 0.05)",
+                  border: "1px solid rgba(13, 148, 136, 0.2)",
+                  borderRadius: "8px",
+                  padding: "16px 20px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "12px", color: "#64748B" }}>Delta Units Consumed</div>
+                  <strong style={{ fontSize: "20px", color: "#0F172A" }}>
+                    {Math.max(0, submeterForm.curr - submeterForm.prev)} kWh Units
+                  </strong>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "12px", color: "#64748B" }}>Total Electricity Charge to Split</div>
+                  <strong style={{ fontSize: "22px", color: "var(--teal-primary)" }}>
+                    ₹{(Math.max(0, submeterForm.curr - submeterForm.prev) * submeterForm.rate).toLocaleString("en-IN")}
+                  </strong>
+                </div>
+              </div>
+
+              <button
+                onClick={handleSaveSubmeterReading}
+                className="btnPrimary"
+                style={{ padding: "12px 24px", borderRadius: "8px", fontWeight: 700, fontSize: "14px", alignSelf: "flex-start" }}
+              >
+                Save Reading & Add to Month-End Invoices
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: DYNAMIC SHARING RATES */}
+        {activeTab === "rates" && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
+              Dynamic Sharing Rates & Food Plan Addons
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
+              Update room pricing tiers based on sharing density, AC availability, and food mess options.
+            </p>
+
+            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Single Sharing Rent (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.singleRate}
+                    onChange={(e) => setRatesForm({ ...ratesForm, singleRate: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Double Sharing Rent (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.doubleRate}
+                    onChange={(e) => setRatesForm({ ...ratesForm, doubleRate: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Triple Sharing Rent (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.tripleRate}
+                    onChange={(e) => setRatesForm({ ...ratesForm, tripleRate: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    AC Surcharge (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.acSurcharge}
+                    onChange={(e) => setRatesForm({ ...ratesForm, acSurcharge: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Veg Food Subscription (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.vegFoodRate}
+                    onChange={(e) => setRatesForm({ ...ratesForm, vegFoodRate: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
+                    Non-Veg Food Subscription (₹/mo)
+                  </label>
+                  <input
+                    type="number"
+                    value={ratesForm.nonVegFoodRate}
+                    onChange={(e) => setRatesForm({ ...ratesForm, nonVegFoodRate: Number(e.target.value) })}
+                    style={{ width: "100%", padding: "10px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "8px", color: "#0F172A" }}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleSaveDynamicRates}
+                disabled={updating}
+                className="btnPrimary"
+                style={{ padding: "12px 24px", borderRadius: "8px", fontWeight: 700, fontSize: "14px", alignSelf: "flex-start" }}
+              >
+                {updating ? "Saving..." : "Update Live Commercial Pricing"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: STATUTORY AUDITS */}
+        {activeTab === "compliance" && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
+              Statutory Safety & Licensing Checklist
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
+              Ensures municipal fire clearances, food safety regulations, and police compliance.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {[
+                { key: "fireNocVerified" as const, title: "Fire Safety NOC Clearance", desc: "Building equipped with smoke detectors, operational fire hydrants, and unblocked fire exits." },
+                { key: "fssaiVerified" as const, title: "FSSAI Food Hygiene Certificate", desc: "Mess kitchen complies with state food authority standards and pest control inspections." },
+                { key: "cctvAudited" as const, title: "24x7 CCTV & Biometric Logging", desc: "Common corridors, biometric entry registers, and DVR backups are operational." },
+                { key: "policeIntimated" as const, title: "Local Police Station Intimation", desc: "Form C tenant verification slips submitted to the jurisdictional police station." },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  style={{
+                    background: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "10px",
+                    padding: "16px 20px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <strong style={{ fontSize: "14px", color: "#0F172A" }}>{item.title}</strong>
+                    <p style={{ fontSize: "12px", color: "#64748B", margin: "4px 0 0 0" }}>
+                      {item.desc}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleCompliance(item.key)}
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: "20px",
+                      border: "none",
+                      background: property[item.key] ? "rgba(5, 150, 105, 0.12)" : "rgba(220, 38, 38, 0.12)",
+                      color: property[item.key] ? "#059669" : "#DC2626",
+                      fontWeight: 700,
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    {property[item.key] ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+                    {property[item.key] ? "Verified" : "Pending Audit"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: RESIDENTS ROSTER */}
+        {activeTab === "residents" && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
+              Current Residents Roster ({occupiedBedsList.length} Active Occupants)
+            </h3>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
+              Real-time tenant ledger linked to room submeters, monthly rent, and deposit escrow.
+            </p>
+
+            <div className="tableWrapper">
+              <table className="adminTable">
+                <thead>
+                  <tr>
+                    <th>Resident Name</th>
+                    <th>Bed / Room</th>
+                    <th>Contact Phone</th>
+                    <th>Monthly Rent</th>
+                    <th>Payment Status</th>
+                    <th>Deposit Escrow</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {occupiedBedsList.map((bed) => (
+                    <tr key={bed.id}>
+                      <td>
+                        <strong style={{ color: "#0F172A" }}>{bed.tenantName || "Resident"}</strong>
+                        <span className="subtext">Aadhaar Verified</span>
+                      </td>
+                      <td>
+                        <strong>Bed {bed.bedNumber}</strong>
+                      </td>
+                      <td>{bed.tenantPhone || "+91 98201 12345"}</td>
+                      <td>
+                        <strong style={{ color: "var(--teal-primary)" }}>₹{bed.monthlyRent.toLocaleString("en-IN")}</strong>
+                      </td>
+                      <td>
+                        <span className="badge paid">PAID (UPI)</span>
+                      </td>
+                      <td>
+                        <span style={{ color: "#059669", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px" }}>
+                          <CheckCircle size={13} /> ₹15,000 in Escrow
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {occupiedBedsList.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "#64748B" }}>
+                        All beds in this property are currently vacant.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

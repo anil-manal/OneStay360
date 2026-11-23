@@ -478,7 +478,13 @@ export default function BusinessConsole() {
               return (
                 <tr key={biz.id}>
                   <td>
-                    <strong>{biz.name}</strong>
+                    <Link
+                      href={`/admin/business/${biz.id}`}
+                      style={{ color: "#0F172A", textDecoration: "none", fontWeight: 700 }}
+                      title="Open complete business dossier & properties portfolio"
+                    >
+                      {biz.name} &rarr;
+                    </Link>
                     <span className="subtext" style={{ display: "block" }}>
                       ID: {biz.id} &bull; GST: {biz.gstNumber}
                     </span>
@@ -514,27 +520,27 @@ export default function BusinessConsole() {
                   <td style={{ whiteSpace: "nowrap" }}>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       <Link
-                        href={`/admin/business/${biz.id}/properties`}
+                        href={`/admin/business/${biz.id}`}
                         className="btnPrimary"
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "6px",
                           fontSize: "12px",
-                          padding: "6px 12px",
+                          padding: "7px 12px",
                           textDecoration: "none",
                           borderRadius: "6px",
-                          fontWeight: 600,
+                          fontWeight: 700,
                         }}
                       >
-                        <Building2 size={13} /> Properties ({biz.totalProperties})
+                        <Building2 size={13} /> Manage Business & Properties ({biz.totalProperties}) &rarr;
                       </Link>
                       <button
                         className="tableActionBtn"
                         onClick={() => handleOpenDrawer(biz)}
                         style={{ display: "flex", alignItems: "center", gap: "6px" }}
                       >
-                        <Sliders size={14} /> Audit Dossier
+                        <Sliders size={14} /> Quick Audit
                       </button>
                     </div>
                   </td>
@@ -549,7 +555,7 @@ export default function BusinessConsole() {
       {selectedBiz && (
         <div
           className="modalOverlay"
-          style={{ justifyContent: "flex-end", background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(4px)" }}
+          style={{ justifyContent: "flex-end", background: "rgba(15, 23, 42, 0.5)", backdropFilter: "blur(4px)" }}
           onClick={() => setSelectedBiz(null)}
         >
           <div
@@ -557,11 +563,11 @@ export default function BusinessConsole() {
               width: "100%",
               maxWidth: "850px",
               height: "100vh",
-              background: "#0F172A",
+              background: "#FFFFFF",
               borderLeft: "1px solid var(--border-color)",
               padding: "32px",
               overflowY: "auto",
-              boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
+              boxShadow: "-10px 0 30px rgba(0,0,0,0.15)",
               display: "flex",
               flexDirection: "column",
             }}
@@ -573,14 +579,14 @@ export default function BusinessConsole() {
                 <span className={`badge ${selectedBiz.ownerStatus}`} style={{ marginBottom: "6px", display: "inline-block" }}>
                   KYC {selectedBiz.ownerStatus.toUpperCase()}
                 </span>
-                <h3 style={{ fontSize: "22px", margin: "4px 0", color: "#FFFFFF" }}>{selectedBiz.name}</h3>
+                <h3 style={{ fontSize: "22px", margin: "4px 0", color: "#0F172A" }}>{selectedBiz.name}</h3>
                 <p className="subtext">
-                  Owner: <strong>{selectedBiz.ownerName}</strong> &bull; {selectedBiz.phone} &bull; HQ: {selectedBiz.city}
+                  Owner: <strong style={{ color: "#0F172A" }}>{selectedBiz.ownerName}</strong> &bull; {selectedBiz.phone} &bull; HQ: {selectedBiz.city}
                 </p>
               </div>
               <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                 <Link
-                  href={`/admin/business/${selectedBiz.id}/properties`}
+                  href={`/admin/business/${selectedBiz.id}`}
                   className="btnPrimary"
                   style={{
                     display: "flex",
@@ -590,10 +596,10 @@ export default function BusinessConsole() {
                     padding: "8px 14px",
                     textDecoration: "none",
                     borderRadius: "6px",
-                    fontWeight: 600,
+                    fontWeight: 700,
                   }}
                 >
-                  <Building2 size={14} /> Open Properties Portfolio &rarr;
+                  <Building2 size={14} /> Open Full Business Details & Properties Screen &rarr;
                 </Link>
                 <button className="closeBtn" onClick={() => setSelectedBiz(null)}>
                   <XCircle size={24} />
