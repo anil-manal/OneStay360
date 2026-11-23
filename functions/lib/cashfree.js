@@ -183,7 +183,7 @@ exports.createCashfreePaymentSession = functions
     if (!uid) {
         throw new functions.https.HttpsError('unauthenticated', 'Login required');
     }
-    const { businessId, tenantId, rentInvoiceId, enrollmentRequestId } = data || {};
+    const { businessId, tenantId, rentInvoiceId, enrollmentRequestId, forceNew } = data || {};
     if (!businessId || (!rentInvoiceId && !enrollmentRequestId)) {
         throw new functions.https.HttpsError('invalid-argument', 'businessId and either rentInvoiceId or enrollmentRequestId required');
     }
@@ -204,8 +204,17 @@ exports.createCashfreePaymentSession = functions
         if (enrollment.status === 'confirmed' || enrollment.status === 'approved') {
             throw new functions.https.HttpsError('failed-precondition', 'Bill already paid');
         }
-        // Check if active Cashfree link already exists
-        if (enrollment.cashfreePaymentUrl && enrollment.cashfreeLinkId) {
+        // Check if active Cashfree link already exists and is fresh (< 15 mins)
+        const createdAtRaw = enrollment.cashfreeCreatedAt;
+        const createdAtMs = createdAtRaw?.toMillis
+            ? createdAtRaw.toMillis()
+            : createdAtRaw?._seconds
+                ? createdAtRaw._seconds * 1000
+                : createdAtRaw
+                    ? new Date(createdAtRaw).getTime()
+                    : 0;
+        const isFresh = createdAtMs > 0 && (Date.now() - createdAtMs < 15 * 60 * 1000);
+        if (!forceNew && isFresh && enrollment.cashfreePaymentUrl && enrollment.cashfreeLinkId) {
             return {
                 paymentUrl: enrollment.cashfreePaymentUrl,
                 linkId: enrollment.cashfreeLinkId,
@@ -235,7 +244,7 @@ exports.createCashfreePaymentSession = functions
                 send_email: false,
             },
             link_meta: {
-                return_url: `https://www.onestay360.in/payment/status?link_id=${uniqueLinkId}`,
+                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
             },
             link_notes: {
@@ -293,7 +302,7 @@ exports.createCashfreePaymentSession = functions
                 send_email: false,
             },
             link_meta: {
-                return_url: `https://www.onestay360.in/payment/status?link_id=${uniqueLinkId}`,
+                return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
                 notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
             },
             link_notes: {

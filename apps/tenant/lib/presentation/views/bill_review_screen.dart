@@ -41,6 +41,8 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
     super.dispose();
   }
 
+  bool _hasTriedCashfree = false;
+
   Future<void> _payViaCashfree(Map<String, dynamic> data) async {
     final businessId = data['businessId'] as String? ?? '';
     final tenantId = data['tenantId'] as String? ?? FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -53,7 +55,10 @@ class _BillReviewScreenState extends State<BillReviewScreen> {
         'businessId': businessId,
         'tenantId': tenantId,
         'enrollmentRequestId': widget.enrollmentRequestId,
+        'forceNew': _hasTriedCashfree,
       });
+
+      _hasTriedCashfree = true;
 
       final paymentUrl = result.data['paymentUrl'] as String?;
       if (paymentUrl != null && paymentUrl.isNotEmpty) {

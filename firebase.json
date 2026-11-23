@@ -40,6 +40,12 @@
       "**/node_modules/**"
     ],
     "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/payment/**",
+        "destination": "/payment/status/index.html"
+      }
+    ],
     "headers": [
       {
         "source": "/.well-known/assetlinks.json",

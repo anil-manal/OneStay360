@@ -1,6 +1,8 @@
 {
   "projects": {
-    "default": "onestay360-1"
+    "default": "onestay360-1",
+    "production": "onestay360-1",
+    "staging": "onestay360-1"
   },
   "targets": {},
   "etags": {}
