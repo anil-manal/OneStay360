@@ -15,6 +15,7 @@ import {
   FileCheck2,
   Users,
   CheckCircle2,
+  XCircle,
   ChevronDown,
   ArrowRight,
   Download,
@@ -23,43 +24,74 @@ import {
   Coins,
   QrCode,
   BellRing,
-  HelpCircle,
   ExternalLink,
+  MessageSquare,
+  Calculator,
+  Bed,
+  Check,
+  Rotate3d,
 } from "lucide-react";
 
-export default function LandingPage() {
-  const [activePersona, setActivePersona] = useState<"tenants" | "owners">("tenants");
-  const [previewTab, setPreviewTab] = useState<"tenant" | "owner">("tenant");
-  const [monthlyRentVolume, setMonthlyRentVolume] = useState<number>(1500000); // 15 Lakhs default
+export default function LightLandingPage() {
+  const [activePersona, setActivePersona] = useState<"owners" | "tenants">("owners");
+  const [previewTab, setPreviewTab] = useState<"owner" | "tenant">("owner");
+  const [monthlyRentVolume, setMonthlyRentVolume] = useState<number>(2000000); // 20 Lakhs
+  const [selectedBed, setSelectedBed] = useState<{ room: string; bed: string; tenant: string; rent: string; status: string } | null>({
+    room: "Room 102",
+    bed: "Bed A",
+    tenant: "Aditya Sharma",
+    rent: "₹12,500/mo",
+    status: "Occupied • Paid",
+  });
+  const [matrixFilter, setMatrixFilter] = useState<"all" | "vacant" | "occupied">("all");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  // Calculations for savings calculator
+  // Meter calculation demo
+  const [electricityUnits, setElectricityUnits] = useState<number>(180);
+  const electricityRate = 9;
+  const roommatesCount = 2;
+  const totalElecBill = electricityUnits * electricityRate;
+  const perTenantElec = Math.round(totalElecBill / roommatesCount);
+
+  // Gateway calculations
   const gatewayLossRate = 0.0236; // 2% + 18% GST
   const standardGatewayLoss = Math.round(monthlyRentVolume * gatewayLossRate);
-  const oneStayCost = Math.round(monthlyRentVolume * 0.0002); // ~negligible direct routing
+  const oneStayCost = 0; // 0% UPI direct settlement
   const monthlySaved = standardGatewayLoss - oneStayCost;
   const annualSaved = monthlySaved * 12;
 
+  // Mock rooms for interactive matrix
+  const roomsData = [
+    { number: "101", type: "Double Sharing", beds: [{ id: "A", status: "occupied", tenant: "Kunal Deshmukh", rent: "₹11,000" }, { id: "B", status: "vacant", tenant: "Available", rent: "₹11,000" }] },
+    { number: "102", type: "Triple Sharing", beds: [{ id: "A", status: "occupied", tenant: "Aditya Sharma", rent: "₹9,500" }, { id: "B", status: "occupied", tenant: "Rohan V.", rent: "₹9,500" }, { id: "C", status: "notice", tenant: "Vikram (Leaving 10 Dec)", rent: "₹9,500" }] },
+    { number: "103", type: "Single Deluxe", beds: [{ id: "A", status: "occupied", tenant: "Dr. Sandeep Patel", rent: "₹18,000" }] },
+    { number: "104", type: "Double Sharing", beds: [{ id: "A", status: "vacant", tenant: "Available", rent: "₹12,000" }, { id: "B", status: "vacant", tenant: "Available", rent: "₹12,000" }] },
+    { number: "201", type: "Triple Sharing", beds: [{ id: "A", status: "occupied", tenant: "Ayush Goyal", rent: "₹9,000" }, { id: "B", status: "occupied", tenant: "Prashant K.", rent: "₹9,000" }, { id: "C", status: "vacant", tenant: "Available", rent: "₹9,000" }] },
+    { number: "202", type: "Double Sharing", beds: [{ id: "A", status: "occupied", tenant: "Harshil Dave", rent: "₹11,500" }, { id: "B", status: "notice", tenant: "Mohit (Leaving 15 Dec)", rent: "₹11,500" }] },
+    { number: "203", type: "Single Premium", beds: [{ id: "A", status: "occupied", tenant: "Aniket Joshi", rent: "₹19,500" }] },
+    { number: "204", type: "Double Sharing", beds: [{ id: "A", status: "occupied", tenant: "Nitin Rathore", rent: "₹11,500" }, { id: "B", status: "vacant", tenant: "Available", rent: "₹11,500" }] },
+  ];
+
   const faqs = [
     {
-      q: "How does OneStay360 ensure 0% payment charges on UPI for tenants?",
-      a: "Unlike traditional e-commerce gateways that charge a 2% to 2.36% platform fee on UPI, OneStay360 routes UPI payments directly to the PG owner's verified bank account via NPCI UPI Intent. Tenants pay the exact base rent with ₹0 extra charges on Google Pay, PhonePe, or Paytm.",
+      q: "How does OneStay360 beat traditional tools like RentOk on payment gateway charges?",
+      a: "Most platforms route rent payments through standard aggregators, costing PG owners or tenants 2.0% to 2.36% in transaction fees. On ₹20 Lakhs monthly collections, you lose nearly ₹50,000 every month! OneStay360 implements true Direct UPI Intent & Zero-Loss settlement rails where money lands directly in your bank account with ₹0 gateway commission.",
     },
     {
-      q: "How quickly do PG owners receive rent settlements?",
-      a: "Settlements occur directly to the PG owner's registered bank account. Because funds are routed peer-to-merchant, there is zero platform holding time, and money is available in real time or T+1 depending on the chosen rail.",
+      q: "What makes the OneStay360 360° Virtual Tour different from regular photos?",
+      a: "Traditional apps only let owners upload flat camera photos that often mislead tenants. OneStay360 embeds interactive 360° panoramic virtual walkthroughs. Prospective tenants can navigate room dimensions, inspect bathroom cleanliness, and view common areas on their phone, driving 3x faster bookings without requiring physical visits.",
     },
     {
-      q: "Can I manage multiple properties or branches from one account?",
-      a: "Yes! OneStay360 Business supports multi-property architecture. PG owners and hostel managers can switch between buildings, manage individual wardens or floor managers with role-based permissions, and view unified financial reports.",
+      q: "How does the automated WhatsApp rent reminder flow work?",
+      a: "The system automatically dispatches customized WhatsApp messages with secure 1-tap payment links on your chosen dates (e.g., 1st, 3rd, and 5th of every month). Tenants tap the link, pay exact rent via GPay/PhonePe with ₹0 fee, and our server webhook instantly updates your ledger and generates a digital receipt.",
     },
     {
-      q: "Are tenant digital rent receipts eligible for HRA tax exemption?",
-      a: "Absolutely. Every time a bill is settled, the Tenant App automatically generates an authentic digital rent receipt containing the property address, landlord PAN, tenant details, and unique transaction ID ready for corporate HRA claims.",
+      q: "Can I manage multiple PG branches with separate managers?",
+      a: "Yes. OneStay360 Business supports multi-branch property groups. You can assign wardens, accountants, or cleaners specific roles with restricted access to their respective branch while seeing unified analytics from your owner dashboard.",
     },
     {
-      q: "What is the 360° Room Tour feature?",
-      a: "OneStay360 allows properties to upload interactive 360-degree panoramic room tours. Prospective tenants can explore bedrooms, washrooms, and common dining areas virtually from their phone before making a booking.",
+      q: "Are the digital rent receipts compliant with corporate HRA claims?",
+      a: "Yes. Every generated receipt is legally stamped with your Landlord PAN, property address, tenant details, and unique transaction reference ID for 100% valid HRA tax exemptions.",
     },
   ];
 
@@ -68,7 +100,7 @@ export default function LandingPage() {
       <div className="ambientGlowTop"></div>
       <div className="ambientGlowMid"></div>
 
-      {/* ================= Sticky Navbar ================= */}
+      {/* ================= Sticky Light Navbar ================= */}
       <nav className="landingNav">
         <div className="landingContainer">
           <div className="navContent">
@@ -77,75 +109,75 @@ export default function LandingPage() {
                 <Building2 size={24} color="#FFFFFF" />
               </div>
               <div>
-                <span className="logoText">OneStay360</span>
-                <span className="logoBadge" style={{ marginLeft: "8px" }}>PRO</span>
+                <span className="logoText">OneStay<span style={{ color: "#0D9488" }}>360</span></span>
+                <span className="logoBadge" style={{ marginLeft: "8px" }}>ENTERPRISE</span>
               </div>
             </Link>
 
             <ul className="navLinks">
               <li><a href="#features" className="navLink">Features</a></li>
-              <li><a href="#dual-solution" className="navLink">For Tenants</a></li>
-              <li><a href="#dual-solution" className="navLink">For PG Owners</a></li>
+              <li><a href="#matrix-demo" className="navLink">Smart Bed Matrix</a></li>
+              <li><a href="#comparison" className="navLink">Why OneStay360</a></li>
               <li><a href="#savings-calculator" className="navLink">Zero-Loss Calculator</a></li>
-              <li><a href="#downloads" className="navLink">Get the App</a></li>
+              <li><a href="#downloads" className="navLink">Mobile Apps</a></li>
               <li><a href="#faq" className="navLink">FAQ</a></li>
             </ul>
 
             <div className="navActions">
               <Link href="/admin" className="btnSecondary">
-                <ShieldCheck size={16} /> Admin Console
+                <ShieldCheck size={16} /> Admin Portal
               </Link>
               <a href="#downloads" className="btnPrimary">
-                Download App <ArrowRight size={16} />
+                Get Started Free <ArrowRight size={16} />
               </a>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* ================= Hero Section ================= */}
+      {/* ================= Hero Section (Light & Crisp) ================= */}
       <header className="heroSection">
         <div className="landingContainer">
           <div className="pillBadge">
-            <Sparkles size={14} />
-            <span>India&apos;s Smartest Co-Living &amp; PG Operating System</span>
+            <Sparkles size={14} color="#0D9488" />
+            <span>India&apos;s #1 Smart Co-Living &amp; PG Operating System</span>
           </div>
 
           <h1 className="heroHeading">
-            Live Smarter. Manage Effortlessly. <br />
-            <span className="gradientText">Zero Brokerage. Zero Payment Loss.</span>
+            The Complete Operating System for <br />
+            <span className="gradientText">Modern PGs, Hostels &amp; Co-Living</span>
           </h1>
 
           <p className="heroSubtext">
-            The all-in-one digital platform connecting discerning tenants with verified PGs and hostels. 
-            Enjoy 360° virtual tours, instant 0%-fee UPI rent payments, and automated operations for modern co-living.
+            Say goodbye to 2% gateway cuts, manual WhatsApp chasing, and chaotic spreadsheets. 
+            Automate rent collection with <strong>0% fee direct UPI</strong>, manage live bed occupancy, and delight tenants with <strong>360° virtual tours</strong>.
           </p>
 
           <div className="heroCtaGroup">
             <a href="#downloads" className="btnPrimary" style={{ padding: "14px 28px", fontSize: "16px" }}>
-              <Smartphone size={20} /> Download Tenant App
+              <Building2 size={20} /> Register Your PG Free
             </a>
             <a href="#savings-calculator" className="btnSecondary" style={{ padding: "14px 28px", fontSize: "16px" }}>
-              <TrendingUp size={20} /> Calculate Business Savings
+              <TrendingUp size={20} /> Calculate Annual Savings
             </a>
           </div>
 
           <div className="heroTrustBadges">
             <div className="trustItem">
               <CheckCircle2 size={18} className="trustIcon" />
-              <span>15,000+ Verified Beds</span>
+              <span>15,000+ Beds Active</span>
             </div>
             <div className="trustItem">
               <CheckCircle2 size={18} className="trustIcon" />
-              <span>₹0 Gateway Loss on UPI</span>
+              <span>0% Gateway Surcharge on UPI</span>
             </div>
             <div className="trustItem">
               <CheckCircle2 size={18} className="trustIcon" />
-              <span>Direct Bank Settlements</span>
+              <span>Instant WhatsApp Reminders</span>
             </div>
             <div className="trustItem">
               <CheckCircle2 size={18} className="trustIcon" />
-              <span>Instant Digital Move-In</span>
+              <span>Paperless Aadhaar e-KYC</span>
             </div>
           </div>
 
@@ -159,122 +191,122 @@ export default function LandingPage() {
               </div>
               <div className="showcaseTabs">
                 <button
-                  className={`showcaseTabBtn ${previewTab === "tenant" ? "showcaseTabBtnActive" : ""}`}
-                  onClick={() => setPreviewTab("tenant")}
-                >
-                  Tenant Experience
-                </button>
-                <button
                   className={`showcaseTabBtn ${previewTab === "owner" ? "showcaseTabBtnActive" : ""}`}
                   onClick={() => setPreviewTab("owner")}
                 >
-                  PG Owner Dashboard
+                  PG Owner OS
+                </button>
+                <button
+                  className={`showcaseTabBtn ${previewTab === "tenant" ? "showcaseTabBtnActive" : ""}`}
+                  onClick={() => setPreviewTab("tenant")}
+                >
+                  Tenant Companion App
                 </button>
               </div>
-              <div style={{ fontSize: "12px", color: "#64748B" }}>onestay360.com/live</div>
+              <div style={{ fontSize: "12px", color: "#94A3B8", fontWeight: 600 }}>live.onestay360.com</div>
             </div>
 
             <div className="showcaseGrid">
-              {previewTab === "tenant" ? (
+              {previewTab === "owner" ? (
                 <>
                   <div className="appPreviewCard">
                     <div className="cardHeaderTitle">
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#2DD4BF" }}>MONTHLY BILL BREAKDOWN</span>
-                      <span style={{ fontSize: "11px", background: "rgba(16, 185, 129, 0.2)", color: "#10B981", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
-                        0% EXTRA FEE
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0D9488" }}>OCCUPANCY &amp; RENT RECOVERY</span>
+                      <span style={{ fontSize: "11px", background: "#E6FFFA", color: "#0D9488", padding: "3px 10px", borderRadius: "12px", fontWeight: 700 }}>
+                        94% OCCUPIED
                       </span>
                     </div>
-                    <div style={{ fontSize: "28px", fontWeight: 800, color: "#FFFFFF", marginBottom: "6px" }}>₹12,000.00</div>
-                    <p style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>Room 304 - Sharing Deluxe • Due on 5th Dec</p>
-                    <div style={{ background: "#1E293B", borderRadius: "10px", padding: "12px", marginBottom: "16px" }}>
+                    <div style={{ fontSize: "30px", fontWeight: 800, color: "#0F172A", marginBottom: "4px" }}>₹24,80,000</div>
+                    <p style={{ fontSize: "12.5px", color: "#64748B", marginBottom: "16px" }}>Collected This Month • 186/198 Beds Occupied</p>
+                    <div style={{ background: "#F8FAFC", borderRadius: "12px", padding: "14px", border: "1px solid #E2E8F0", marginBottom: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
-                        <span style={{ color: "#94A3B8" }}>Base Rent</span>
-                        <span style={{ fontWeight: 600 }}>₹11,000</span>
+                        <span style={{ color: "#64748B" }}>On-Time Collection Rate</span>
+                        <span style={{ color: "#059669", fontWeight: 700 }}>98.2%</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
-                        <span style={{ color: "#94A3B8" }}>Electricity (142 Units)</span>
-                        <span style={{ fontWeight: 600 }}>₹1,000</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#10B981", fontWeight: 600 }}>
-                        <span>UPI Convenience Fee</span>
-                        <span>₹0.00 (FREE)</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+                        <span style={{ color: "#64748B" }}>Pending Dues</span>
+                        <span style={{ color: "#D97706", fontWeight: 700 }}>₹42,000 (3 Tenants)</span>
                       </div>
                     </div>
-                    <button style={{ width: "100%", padding: "12px", borderRadius: "8px", background: "linear-gradient(135deg, #0D9488, #06B6D4)", color: "#FFF", border: "none", fontWeight: 700, cursor: "pointer" }}>
-                      Pay via GPay / PhonePe (₹12,000)
+                    <button style={{ width: "100%", padding: "11px", borderRadius: "8px", background: "#F1F5F9", color: "#334155", border: "1px solid #CBD5E1", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <MessageSquare size={16} color="#059669" /> Send 1-Click WhatsApp Reminders
                     </button>
                   </div>
 
                   <div className="appPreviewCard">
                     <div className="cardHeaderTitle">
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#38BDF8" }}>TODAY&apos;S CHEF MENU &amp; ATTENDANCE</span>
-                      <span style={{ fontSize: "11px", background: "rgba(56, 189, 248, 0.2)", color: "#38BDF8", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
-                        DINNER READY
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0284C7" }}>SAVED IN GATEWAY COMMISSIONS</span>
+                      <span style={{ fontSize: "11px", background: "#E0F2FE", color: "#0284C7", padding: "3px 10px", borderRadius: "12px", fontWeight: 700 }}>
+                        0% UPI CUT
                       </span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-                      <UtensilsCrossed size={20} color="#38BDF8" />
-                      <span style={{ fontSize: "15px", fontWeight: 700 }}>Paneer Butter Masala, Roti, Dal Fry &amp; Jeera Rice</span>
-                    </div>
-                    <p style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>Serving: 7:30 PM - 10:00 PM • Dining Hall A</p>
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <div style={{ flex: 1, background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                        <span style={{ fontSize: "12px", color: "#10B981", fontWeight: 700 }}>Attending Dinner ✅</span>
+                    <div style={{ fontSize: "30px", fontWeight: 800, color: "#059669", marginBottom: "4px" }}>+₹58,528 Saved</div>
+                    <p style={{ fontSize: "12.5px", color: "#64748B", marginBottom: "16px" }}>Extra profit kept this month vs. traditional 2.36% gateways</p>
+                    <div style={{ background: "#F8FAFC", borderRadius: "12px", padding: "14px", border: "1px solid #E2E8F0", marginBottom: "14px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "#64748B", marginBottom: "4px" }}>
+                        <span>RentOk / Razorpay Standard Cut</span>
+                        <span style={{ color: "#EF4444", fontWeight: 600 }}>- ₹58,528.00</span>
                       </div>
-                      <div style={{ flex: 1, background: "#1E293B", border: "1px solid #334155", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                        <span style={{ fontSize: "12px", color: "#94A3B8" }}>Skip Meal</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "#64748B" }}>
+                        <span>OneStay360 Net Settled</span>
+                        <span style={{ color: "#059669", fontWeight: 700 }}>100% Full Payout</span>
                       </div>
                     </div>
+                    <button style={{ width: "100%", padding: "11px", borderRadius: "8px", background: "linear-gradient(135deg, #0D9488, #0F766E)", color: "#FFF", border: "none", fontWeight: 700, cursor: "pointer" }}>
+                      View Bank Settlement Report
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="appPreviewCard">
                     <div className="cardHeaderTitle">
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#10B981" }}>OCCUPANCY &amp; RENT RECOVERY</span>
-                      <span style={{ fontSize: "11px", background: "rgba(16, 185, 129, 0.2)", color: "#10B981", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
-                        94% OCCUPIED
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0D9488" }}>TENANT RENT CHECKOUT</span>
+                      <span style={{ fontSize: "11px", background: "#E6FFFA", color: "#0D9488", padding: "3px 10px", borderRadius: "12px", fontWeight: 700 }}>
+                        0% FEE ON UPI
                       </span>
                     </div>
-                    <div style={{ fontSize: "28px", fontWeight: 800, color: "#FFFFFF", marginBottom: "6px" }}>₹24,80,000</div>
-                    <p style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>Collected This Month • 186/198 Beds Occupied</p>
-                    <div style={{ background: "#1E293B", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
+                    <div style={{ fontSize: "30px", fontWeight: 800, color: "#0F172A", marginBottom: "4px" }}>₹12,000.00</div>
+                    <p style={{ fontSize: "12.5px", color: "#64748B", marginBottom: "16px" }}>Room 304 - Sharing Deluxe • Due 5th Dec</p>
+                    <div style={{ background: "#F8FAFC", borderRadius: "12px", padding: "14px", border: "1px solid #E2E8F0", marginBottom: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
-                        <span style={{ color: "#94A3B8" }}>On-Time Collections</span>
-                        <span style={{ color: "#10B981", fontWeight: 700 }}>98.2%</span>
+                        <span style={{ color: "#64748B" }}>Base Rent</span>
+                        <span style={{ fontWeight: 600 }}>₹11,000</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-                        <span style={{ color: "#94A3B8" }}>Pending Due</span>
-                        <span style={{ color: "#F59E0B", fontWeight: 700 }}>₹42,000 (3 Tenants)</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
+                        <span style={{ color: "#64748B" }}>Electricity (142 Units)</span>
+                        <span style={{ fontWeight: 600 }}>₹1,000</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#059669", fontWeight: 700 }}>
+                        <span>UPI Convenience Fee</span>
+                        <span>₹0.00 (FREE)</span>
                       </div>
                     </div>
-                    <button style={{ width: "100%", padding: "10px", borderRadius: "8px", background: "#334155", color: "#E2E8F0", border: "none", fontWeight: 600, cursor: "pointer" }}>
-                      Send 1-Click WhatsApp Reminders
+                    <button style={{ width: "100%", padding: "12px", borderRadius: "8px", background: "linear-gradient(135deg, #0D9488, #0284C7)", color: "#FFF", border: "none", fontWeight: 700, cursor: "pointer" }}>
+                      Pay via GPay / PhonePe (₹12,000)
                     </button>
                   </div>
 
                   <div className="appPreviewCard">
                     <div className="cardHeaderTitle">
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#A855F7" }}>GATEWAY LOSS SAVINGS</span>
-                      <span style={{ fontSize: "11px", background: "rgba(168, 85, 247, 0.2)", color: "#C084FC", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
-                        0% DEDUCTION
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0284C7" }}>DAILY MESS MENU &amp; ATTENDANCE</span>
+                      <span style={{ fontSize: "11px", background: "#E0F2FE", color: "#0284C7", padding: "3px 10px", borderRadius: "12px", fontWeight: 700 }}>
+                        DINNER READY
                       </span>
                     </div>
-                    <div style={{ fontSize: "28px", fontWeight: 800, color: "#10B981", marginBottom: "6px" }}>+₹58,528 Saved</div>
-                    <p style={{ fontSize: "12px", color: "#94A3B8", marginBottom: "16px" }}>Net profit preserved this month vs. traditional 2.36% gateways</p>
-                    <div style={{ background: "#1E293B", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#94A3B8", marginBottom: "4px" }}>
-                        <span>Other Gateways Fee</span>
-                        <span style={{ color: "#EF4444" }}>- ₹58,528.00</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <UtensilsCrossed size={20} color="#0D9488" />
+                      <span style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A" }}>Paneer Butter Masala, Roti, Dal Fry &amp; Jeera Rice</span>
+                    </div>
+                    <p style={{ fontSize: "12.5px", color: "#64748B", marginBottom: "16px" }}>Serving: 7:30 PM - 10:00 PM • Dining Hall A</p>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <div style={{ flex: 1, background: "#E6FFFA", border: "1px solid #99F6E4", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
+                        <span style={{ fontSize: "12.5px", color: "#0D9488", fontWeight: 700 }}>Attending Dinner ✅</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#94A3B8" }}>
-                        <span>OneStay360 Net Settled</span>
-                        <span style={{ color: "#10B981", fontWeight: 700 }}>100% Full Payout</span>
+                      <div style={{ flex: 1, background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
+                        <span style={{ fontSize: "12.5px", color: "#64748B", fontWeight: 500 }}>Skip Meal</span>
                       </div>
                     </div>
-                    <button style={{ width: "100%", padding: "10px", borderRadius: "8px", background: "linear-gradient(135deg, #0D9488, #06B6D4)", color: "#FFF", border: "none", fontWeight: 700, cursor: "pointer" }}>
-                      View Bank Settlement Ledger
-                    </button>
                   </div>
                 </>
               )}
@@ -289,177 +321,208 @@ export default function LandingPage() {
           <div className="statsGrid">
             <div>
               <div className="statNumber">15,000+</div>
-              <div className="statLabel">Verified Beds Under Management</div>
+              <div className="statLabel">Active Beds Managed</div>
             </div>
             <div>
               <div className="statNumber">₹45 Cr+</div>
-              <div className="statLabel">Annual Rent Processed</div>
+              <div className="statLabel">Annual Rent Collected</div>
             </div>
             <div>
               <div className="statNumber">99.4%</div>
-              <div className="statLabel">On-Time Rent Collection Rate</div>
+              <div className="statLabel">On-Time Rent Collection</div>
             </div>
             <div>
-              <div className="statNumber">0%</div>
-              <div className="statLabel">Hidden Gateway Surcharge on UPI</div>
+              <div className="statNumber">₹0</div>
+              <div className="statLabel">Gateway Loss on UPI</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ================= Dual Persona Value Proposition ================= */}
-      <section className="featuresSection" id="dual-solution">
+      {/* ================= Interactive Smart Bed Matrix (Showcasing what beats RentOk) ================= */}
+      <section className="interactiveMatrixSection" id="matrix-demo">
         <div className="landingContainer">
           <div className="sectionHeader">
-            <span className="sectionTag">Engineered for Excellence</span>
-            <h2 className="sectionTitle">A Tailored Experience for Both Sides</h2>
+            <span className="sectionTag">Live Interactive Demo</span>
+            <h2 className="sectionTitle">Smart Visual Bed &amp; Room Matrix</h2>
             <p className="sectionSubtitle">
-              Whether you are a tenant looking for a comfortable home away from home, or a PG owner managing 300+ beds, 
-              OneStay360 delivers seamless, automated operations.
+              Say goodbye to messy paper registers. OneStay360 gives you a real-time, color-coded floor map of every bed, occupancy status, and upcoming vacancy. Click any bed to test!
             </p>
           </div>
 
-          <div className="featureTabsNav">
-            <button
-              className={`featureTabItem ${activePersona === "tenants" ? "featureTabItemActive" : ""}`}
-              onClick={() => setActivePersona("tenants")}
-            >
-              <Smartphone size={18} /> For Tenants &amp; Guests
-            </button>
-            <button
-              className={`featureTabItem ${activePersona === "owners" ? "featureTabItemActive" : ""}`}
-              onClick={() => setActivePersona("owners")}
-            >
-              <Building2 size={18} /> For PG Owners &amp; Landlords
-            </button>
+          <div className="matrixCard">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
+              <div className="matrixLegend">
+                <div className="legendItem">
+                  <span className="legendIndicator indOccupied"></span>
+                  <span>Occupied</span>
+                </div>
+                <div className="legendItem">
+                  <span className="legendIndicator indVacant"></span>
+                  <span>Vacant &amp; Ready</span>
+                </div>
+                <div className="legendItem">
+                  <span className="legendIndicator indNotice"></span>
+                  <span>Notice Period</span>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  onClick={() => setMatrixFilter("all")}
+                  style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 600, border: "1px solid #CBD5E1", background: matrixFilter === "all" ? "#0D9488" : "#FFF", color: matrixFilter === "all" ? "#FFF" : "#475569", cursor: "pointer" }}
+                >
+                  All Beds
+                </button>
+                <button
+                  onClick={() => setMatrixFilter("vacant")}
+                  style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 600, border: "1px solid #CBD5E1", background: matrixFilter === "vacant" ? "#0D9488" : "#FFF", color: matrixFilter === "vacant" ? "#FFF" : "#475569", cursor: "pointer" }}
+                >
+                  Vacant Only
+                </button>
+                <button
+                  onClick={() => setMatrixFilter("occupied")}
+                  style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 600, border: "1px solid #CBD5E1", background: matrixFilter === "occupied" ? "#0D9488" : "#FFF", color: matrixFilter === "occupied" ? "#FFF" : "#475569", cursor: "pointer" }}
+                >
+                  Occupied
+                </button>
+              </div>
+            </div>
+
+            <div className="roomsGrid">
+              {roomsData.map((room) => {
+                const filteredBeds = room.beds.filter((b) => {
+                  if (matrixFilter === "vacant") return b.status === "vacant";
+                  if (matrixFilter === "occupied") return b.status === "occupied" || b.status === "notice";
+                  return true;
+                });
+
+                if (filteredBeds.length === 0) return null;
+
+                return (
+                  <div key={room.number} className="roomBox">
+                    <div className="roomHeader">
+                      <span className="roomName">Room {room.number}</span>
+                      <span className="roomType">{room.type}</span>
+                    </div>
+                    <div className="bedsList">
+                      {filteredBeds.map((bed) => (
+                        <div
+                          key={bed.id}
+                          className={`bedChip ${
+                            bed.status === "vacant" ? "bedVacant" : bed.status === "notice" ? "bedNotice" : "bedOccupied"
+                          }`}
+                          style={{ cursor: "pointer" }}
+                          onClick={() =>
+                            setSelectedBed({
+                              room: `Room ${room.number}`,
+                              bed: `Bed ${bed.id}`,
+                              tenant: bed.tenant,
+                              rent: `${bed.rent}/mo`,
+                              status: bed.status === "vacant" ? "Vacant & Available" : bed.status === "notice" ? "Notice Period" : "Occupied • Active",
+                            })
+                          }
+                        >
+                          Bed {bed.id}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {selectedBed && (
+              <div style={{ marginTop: "24px", padding: "16px 20px", background: "#F0FDFA", border: "1px solid #99F6E4", borderRadius: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#0D9488", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                    <Bed size={20} />
+                  </div>
+                  <div>
+                    <strong style={{ color: "#0F172A", fontSize: "14px" }}>{selectedBed.room} • {selectedBed.bed}</strong>
+                    <div style={{ fontSize: "12.5px", color: "#475569" }}>Tenant: <strong>{selectedBed.tenant}</strong> | Rent: {selectedBed.rent}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 700, padding: "4px 10px", borderRadius: "20px", background: "#FFFFFF", color: "#0D9488", border: "1px solid #99F6E4" }}>
+                    {selectedBed.status}
+                  </span>
+                  <button style={{ padding: "6px 14px", borderRadius: "6px", background: "#0D9488", color: "#FFF", border: "none", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}>
+                    View Ledger
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= Head-to-Head Comparison: OneStay360 vs RentOk ================= */}
+      <section className="comparisonSection" id="comparison">
+        <div className="landingContainer">
+          <div className="sectionHeader">
+            <span className="sectionTag">The Clear Winner</span>
+            <h2 className="sectionTitle">Why Switch to OneStay360?</h2>
+            <p className="sectionSubtitle">
+              Compare OneStay360 against RentOk and traditional manual management to see why leading PG chains are migrating.
+            </p>
           </div>
 
-          <div className="featureCardsGrid">
-            {activePersona === "tenants" ? (
-              <>
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Camera size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">360° Virtual Room Tours</h3>
-                  <p className="featureCardDesc">
-                    Explore high-definition 360-degree panoramic room views, washroom hygiene, and common spaces before visiting in person. Zero surprises.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Coins size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">0% Fee UPI Rent Payments</h3>
-                  <p className="featureCardDesc">
-                    Pay rent directly via Google Pay, PhonePe, or Paytm with zero gateway surcharge. No hidden platform markup on your hard-earned money.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <FileCheck2 size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Instant HRA Rent Receipts</h3>
-                  <p className="featureCardDesc">
-                    Download authentic, signed digital rent receipts with landlord PAN directly from the app for smooth corporate HRA tax exemption claims.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <UtensilsCrossed size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Daily Food Menu &amp; Attendance</h3>
-                  <p className="featureCardDesc">
-                    View daily breakfast, lunch, and dinner menus. Mark meal skips in advance so kitchens avoid food wastage and provide fresher meals.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Wrench size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">1-Tap Maintenance Tickets</h3>
-                  <p className="featureCardDesc">
-                    Wi-Fi down or plumbing issue? Raise a photo-verified maintenance request and track resolution progress in real time with timestamped status.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <ShieldCheck size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Digital KYC &amp; Instant Move-In</h3>
-                  <p className="featureCardDesc">
-                    Complete paperless Aadhaar/Govt ID verification and sign digital rental agreements in under 3 minutes directly from your smartphone.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <TrendingUp size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Zero-Loss Direct Settlements</h3>
-                  <p className="featureCardDesc">
-                    Eliminate 2% to 2.36% gateway cuts. Direct bank routing ensures you receive 100% of your net rent money directly into your business account.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <BellRing size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Auto WhatsApp &amp; SMS Reminders</h3>
-                  <p className="featureCardDesc">
-                    Never chase tenants again. Gentle, automated payment reminders with secure 1-tap payment links are dispatched on scheduled billing dates.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Building2 size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Real-Time Bed Matrix</h3>
-                  <p className="featureCardDesc">
-                    Visual grid of floors, rooms, and individual bed occupancy. Instantly know which beds are vacant, reserved, or upcoming for renewal.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Zap size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Automated Sub-Meter Electricity</h3>
-                  <p className="featureCardDesc">
-                    Log initial and final unit readings or connect smart meters. The app automatically calculates per-tenant power shares and adds them to monthly rent.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <Users size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Multi-Property Staff Roles</h3>
-                  <p className="featureCardDesc">
-                    Assign role-based access for wardens, gate security, accountants, and cleaning staff with strict permission controls across all your branches.
-                  </p>
-                </div>
-
-                <div className="featureCard">
-                  <div className="featureIconBox">
-                    <FileCheck2 size={26} />
-                  </div>
-                  <h3 className="featureCardTitle">Police Verification &amp; KYC Vault</h3>
-                  <p className="featureCardDesc">
-                    Compliant digital archive of tenant government IDs, emergency contacts, college/work proof, and downloadable police verification packets.
-                  </p>
-                </div>
-              </>
-            )}
+          <div className="tableWrapper">
+            <table className="compareTable">
+              <thead>
+                <tr>
+                  <th style={{ width: "32%" }}>Capability / Feature</th>
+                  <th style={{ width: "24%", color: "#94A3B8" }}>Traditional Registers</th>
+                  <th style={{ width: "22%", color: "#64748B" }}>RentOk App</th>
+                  <th className="colHighlight" style={{ width: "22%" }}>OneStay360 ✨</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>UPI Rent Collection Fee</strong></td>
+                  <td>Cash / Manual checking</td>
+                  <td>1.95% - 2.36% Gateway Cut ❌</td>
+                  <td className="colHighlight"><strong>0% Direct UPI Settlement ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Virtual Room Walkthroughs</strong></td>
+                  <td>None (Physical visits only)</td>
+                  <td>Static flat photos only</td>
+                  <td className="colHighlight"><strong>Interactive 360° Panoramic Tours ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Annual Loss on ₹20L/mo Rent</strong></td>
+                  <td>Time lost &amp; unpaid dues</td>
+                  <td>Losing ~₹5,60,000/year to fees ❌</td>
+                  <td className="colHighlight"><strong>₹0 Lost (Keep 100% Net Profit) ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Automated WhatsApp Invoicing</strong></td>
+                  <td>Manual text messages</td>
+                  <td>Yes (Basic templates)</td>
+                  <td className="colHighlight"><strong>1-Tap Smart UPI Payment Links ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Sub-Meter Electricity Splitting</strong></td>
+                  <td>Calculator &amp; notebook</td>
+                  <td>Basic meter logging</td>
+                  <td className="colHighlight"><strong>Automated Roommate Unit Splitter ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Corporate HRA Receipts</strong></td>
+                  <td>Manual paper slips</td>
+                  <td>PDF receipt</td>
+                  <td className="colHighlight"><strong>Instant PAN-Verified Digital Receipts ✅</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Aadhaar e-KYC &amp; Police Verification</strong></td>
+                  <td>Physical photocopies</td>
+                  <td>Digital KYC</td>
+                  <td className="colHighlight"><strong>Paperless e-KYC &amp; Exportable Packet ✅</strong></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -471,17 +534,17 @@ export default function LandingPage() {
             <div className="calcGrid">
               <div>
                 <span className="sectionTag">Fintech Edge</span>
-                <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#FFFFFF", marginBottom: "14px" }}>
-                  How Much Are Payment Gateways Costing Your PG?
+                <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#0F172A", marginBottom: "14px" }}>
+                  Calculate What RentOk &amp; Gateways Cost You
                 </h2>
-                <p style={{ fontSize: "15px", color: "#94A3B8", lineHeight: 1.6, marginBottom: "24px" }}>
-                  Traditional gateways (Razorpay, PayU, Cashfree standard) charge <strong>2.0% + 18% GST (2.36%)</strong> on rental collections. 
-                  Slide to see how much profit OneStay360 saves you every year.
+                <p style={{ fontSize: "15px", color: "#64748B", lineHeight: 1.6, marginBottom: "24px" }}>
+                  Standard payment gateways take <strong>2.0% + 18% GST (2.36%)</strong> on rental transactions. 
+                  Move the slider to see how much money stays directly in your pocket with OneStay360.
                 </p>
 
                 <div className="sliderContainer">
                   <div className="sliderLabelRow">
-                    <span style={{ fontSize: "14px", color: "#94A3B8" }}>Your Monthly Rent Collection:</span>
+                    <span style={{ fontSize: "14px", color: "#64748B", fontWeight: 600 }}>Your Monthly Rent Collection:</span>
                     <span className="sliderValueDisplay">₹{(monthlyRentVolume / 100000).toFixed(1)} Lakhs</span>
                   </div>
                   <input
@@ -493,7 +556,7 @@ export default function LandingPage() {
                     onChange={(e) => setMonthlyRentVolume(Number(e.target.value))}
                     className="customSlider"
                   />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748B", marginTop: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#94A3B8", marginTop: "8px", fontWeight: 600 }}>
                     <span>₹2 Lakhs / mo</span>
                     <span>₹25 Lakhs / mo</span>
                     <span>₹50 Lakhs / mo</span>
@@ -501,15 +564,15 @@ export default function LandingPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                  <div style={{ background: "#0F172A", padding: "16px", borderRadius: "12px", border: "1px solid #334155" }}>
-                    <div style={{ fontSize: "12px", color: "#EF4444", fontWeight: 600 }}>Standard Gateway Cut (2.36%)</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, color: "#EF4444", marginTop: "4px" }}>
-                      - ₹{standardGatewayLoss.toLocaleString("en-IN")}/mo
+                  <div style={{ background: "#FEF2F2", padding: "16px", borderRadius: "12px", border: "1px solid #FECACA" }}>
+                    <div style={{ fontSize: "12px", color: "#DC2626", fontWeight: 700 }}>Others Take Every Month</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: "#DC2626", marginTop: "4px" }}>
+                      - ₹{standardGatewayLoss.toLocaleString("en-IN")}
                     </div>
                   </div>
-                  <div style={{ background: "#0F172A", padding: "16px", borderRadius: "12px", border: "1px solid #0D9488" }}>
-                    <div style={{ fontSize: "12px", color: "#10B981", fontWeight: 600 }}>OneStay360 Smart Routing</div>
-                    <div style={{ fontSize: "20px", fontWeight: 800, color: "#10B981", marginTop: "4px" }}>
+                  <div style={{ background: "#F0FDFA", padding: "16px", borderRadius: "12px", border: "1px solid #99F6E4" }}>
+                    <div style={{ fontSize: "12px", color: "#0D9488", fontWeight: 700 }}>OneStay360 Fee</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: "#0D9488", marginTop: "4px" }}>
                       ₹0 Gateway Cut
                     </div>
                   </div>
@@ -517,19 +580,73 @@ export default function LandingPage() {
               </div>
 
               <div className="calcResultBox">
-                <span style={{ fontSize: "13px", fontWeight: 700, color: "#2DD4BF", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  TOTAL ANNUAL PROFIT PRESERVED
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "#E6FFFA", textTransform: "uppercase", letterSpacing: "1px" }}>
+                  YOUR ANNUAL PROFIT PRESERVED
                 </span>
                 <div className="calcAnnualSaved">
                   ₹{annualSaved.toLocaleString("en-IN")}
                 </div>
-                <p style={{ fontSize: "13px", color: "#94A3B8", marginBottom: "20px" }}>
-                  Direct into your bank account every year instead of vanishing into gateway commissions.
+                <p style={{ fontSize: "14px", color: "#E6FFFA", marginBottom: "24px", opacity: 0.9 }}>
+                  Real money credited directly to your business bank account each year instead of disappearing into gateway fees.
                 </p>
-                <a href="#downloads" className="btnPrimary" style={{ width: "100%", justifyContent: "center" }}>
-                  Protect Your Revenue with OneStay360
+                <a href="#downloads" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", padding: "12px 20px", borderRadius: "10px", background: "#FFFFFF", color: "#0F766E", textDecoration: "none", fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                  Stop Gateway Losses Today <ArrowRight size={16} />
                 </a>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= WhatsApp Automated Reminders Showcase ================= */}
+      <section className="whatsappSection">
+        <div className="landingContainer">
+          <div className="whatsappGrid">
+            <div>
+              <span className="sectionTag">Zero Awkward Calls</span>
+              <h2 style={{ fontSize: "36px", fontWeight: 800, color: "#0F172A", marginBottom: "16px" }}>
+                Automated WhatsApp Reminders with 1-Tap UPI Payment
+              </h2>
+              <p style={{ fontSize: "16px", color: "#64748B", lineHeight: 1.6, marginBottom: "24px" }}>
+                Never spend your 1st of the month chasing tenants for rent. OneStay360 automatically crafts respectful, professional WhatsApp notices with individual room details and a secure 0%-fee UPI payment link.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14.5px", color: "#334155" }}>
+                  <CheckCircle2 size={18} color="#059669" />
+                  <span>Scheduled on 1st, 3rd, and due date automatically</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14.5px", color: "#334155" }}>
+                  <CheckCircle2 size={18} color="#059669" />
+                  <span>Exact rent + power unit bill itemized cleanly</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14.5px", color: "#334155" }}>
+                  <CheckCircle2 size={18} color="#059669" />
+                  <span>Instant receipt auto-delivered upon payment</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="waChatBubble">
+              <div className="waSender">
+                <Building2 size={16} /> Om Sai Comforts Co-Living (via OneStay360)
+              </div>
+              <p style={{ fontSize: "14px", color: "#1E293B", lineHeight: 1.6, margin: "10px 0" }}>
+                Dear <strong>Aditya Sharma</strong>,<br /><br />
+                Your monthly stay bill for <strong>Room 102 (Bed A)</strong> is generated:
+                <br />
+                • Base Rent: <strong>₹11,500</strong><br />
+                • Electricity Units (90 units): <strong>₹810</strong><br />
+                • <strong>Total Payable: ₹12,310</strong><br /><br />
+                Pay instantly via UPI (Google Pay / PhonePe) with <strong>₹0 extra fee</strong>:
+                <br />
+                👉 <span style={{ color: "#0284C7", textDecoration: "underline" }}>https://onestay360.com/pay/INV9823</span>
+              </p>
+              <div style={{ background: "#FFFFFF", borderRadius: "8px", padding: "10px", border: "1px solid #D1FAE5", marginTop: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#059669", fontSize: "12.5px", fontWeight: 700 }}>
+                  <Zap size={14} /> Instant Receipt will be generated automatically
+                </div>
+              </div>
+              <div className="waTime">10:02 AM • Delivered</div>
             </div>
           </div>
         </div>
@@ -539,72 +656,72 @@ export default function LandingPage() {
       <section className="downloadSection" id="downloads">
         <div className="landingContainer">
           <div className="sectionHeader">
-            <span className="sectionTag">Get Started Today</span>
-            <h2 className="sectionTitle">Available on Android &amp; iOS</h2>
+            <span className="sectionTag">Get Started in 60 Seconds</span>
+            <h2 className="sectionTitle">Download the OneStay360 Mobile Apps</h2>
             <p className="sectionSubtitle">
-              Download the app designed specifically for your role. Quick setup, intuitive interfaces, and instant access.
+              Available on Android, iOS, and Web. Choose the companion app designed specifically for you.
             </p>
           </div>
 
           <div className="downloadGrid">
-            {/* Tenant App Card */}
-            <div className="downloadCard downloadCardTenant">
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-                  <div style={{ width: "46px", height: "46px", borderRadius: "12px", background: "rgba(13, 148, 136, 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#2DD4BF" }}>
-                    <Smartphone size={24} />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: "20px", fontWeight: 800, color: "#FFFFFF" }}>OneStay360 for Tenants</h3>
-                    <span style={{ fontSize: "12px", color: "#2DD4BF", fontWeight: 600 }}>Living Experience App</span>
-                  </div>
-                </div>
-                <p style={{ fontSize: "14px", color: "#94A3B8", lineHeight: 1.6, marginBottom: "24px" }}>
-                  Search verified PGs, take 360° virtual tours, pay rent with 0% extra fee on UPI, check meals, and raise instant maintenance requests.
-                </p>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "#0F172A", padding: "16px", borderRadius: "12px", border: "1px solid #334155", marginBottom: "16px" }}>
-                  <QrCode size={48} color="#2DD4BF" />
-                  <div style={{ fontSize: "12px", color: "#94A3B8" }}>
-                    <strong style={{ color: "#FFF", display: "block", marginBottom: "2px" }}>Scan to Install on Mobile</strong>
-                    Point your camera to download directly from Play Store
-                  </div>
-                </div>
-                <a href="#" className="btnPrimary" style={{ width: "100%", justifyContent: "center" }}>
-                  <Download size={16} /> Download Tenant App (APK / Store)
-                </a>
-              </div>
-            </div>
-
             {/* Business App Card */}
             <div className="downloadCard downloadCardOwner">
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-                  <div style={{ width: "46px", height: "46px", borderRadius: "12px", background: "rgba(6, 182, 212, 0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38BDF8" }}>
-                    <Building2 size={24} />
+                  <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "#E0F2FE", display: "flex", alignItems: "center", justifyContent: "center", color: "#0284C7" }}>
+                    <Building2 size={26} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: "20px", fontWeight: 800, color: "#FFFFFF" }}>OneStay360 Business</h3>
-                    <span style={{ fontSize: "12px", color: "#38BDF8", fontWeight: 600 }}>PG &amp; Hostel Owner OS</span>
+                    <h3 style={{ fontSize: "21px", fontWeight: 800, color: "#0F172A" }}>OneStay360 Business</h3>
+                    <span style={{ fontSize: "12.5px", color: "#0284C7", fontWeight: 700 }}>For PG Owners, Hostels &amp; Co-Living Chains</span>
                   </div>
                 </div>
-                <p style={{ fontSize: "14px", color: "#94A3B8", lineHeight: 1.6, marginBottom: "24px" }}>
-                  Manage bed inventory, automate WhatsApp payment reminders, track zero-loss rent settlements, and manage staff across all properties.
+                <p style={{ fontSize: "14.5px", color: "#64748B", lineHeight: 1.6, marginBottom: "24px" }}>
+                  Visual bed matrix, automated WhatsApp payment reminders, zero-loss rent settlements, electricity unit splitters, and staff permission controls.
                 </p>
               </div>
 
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "#0F172A", padding: "16px", borderRadius: "12px", border: "1px solid #334155", marginBottom: "16px" }}>
-                  <QrCode size={48} color="#38BDF8" />
-                  <div style={{ fontSize: "12px", color: "#94A3B8" }}>
-                    <strong style={{ color: "#FFF", display: "block", marginBottom: "2px" }}>Scan for PG Management App</strong>
-                    Available on Android &amp; Web Desktop
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "#F8FAFC", padding: "16px", borderRadius: "14px", border: "1px solid #E2E8F0", marginBottom: "16px" }}>
+                  <QrCode size={52} color="#0284C7" />
+                  <div style={{ fontSize: "12.5px", color: "#64748B" }}>
+                    <strong style={{ color: "#0F172A", display: "block", marginBottom: "2px" }}>Scan to Install Business App</strong>
+                    Available for Android phones &amp; tablets
                   </div>
                 </div>
-                <a href="#" className="btnSecondary" style={{ width: "100%", justifyContent: "center", borderColor: "#06B6D4", color: "#38BDF8" }}>
-                  <Building2 size={16} /> Register Your PG / Hostel
+                <a href="#" className="btnPrimary" style={{ width: "100%", justifyContent: "center", background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)", borderColor: "#0284C7" }}>
+                  <Download size={16} /> Download Business App Free
+                </a>
+              </div>
+            </div>
+
+            {/* Tenant App Card */}
+            <div className="downloadCard downloadCardTenant">
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                  <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "#E6FFFA", display: "flex", alignItems: "center", justifyContent: "center", color: "#0D9488" }}>
+                    <Smartphone size={26} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: "21px", fontWeight: 800, color: "#0F172A" }}>OneStay360 Tenant</h3>
+                    <span style={{ fontSize: "12.5px", color: "#0D9488", fontWeight: 700 }}>Living Experience &amp; Rent App</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: "14.5px", color: "#64748B", lineHeight: 1.6, marginBottom: "24px" }}>
+                  Find verified PGs with 360° virtual tours, pay rent with 0% extra fee on UPI, check daily food menus, download HRA receipts, and raise maintenance tickets.
+                </p>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "#F8FAFC", padding: "16px", borderRadius: "14px", border: "1px solid #E2E8F0", marginBottom: "16px" }}>
+                  <QrCode size={52} color="#0D9488" />
+                  <div style={{ fontSize: "12.5px", color: "#64748B" }}>
+                    <strong style={{ color: "#0F172A", display: "block", marginBottom: "2px" }}>Scan to Install Tenant App</strong>
+                    Instant access on Google Play &amp; App Store
+                  </div>
+                </div>
+                <a href="#" className="btnPrimary" style={{ width: "100%", justifyContent: "center" }}>
+                  <Download size={16} /> Download Tenant App
                 </a>
               </div>
             </div>
@@ -619,7 +736,7 @@ export default function LandingPage() {
             <span className="sectionTag">Got Questions?</span>
             <h2 className="sectionTitle">Frequently Asked Questions</h2>
             <p className="sectionSubtitle">
-              Everything you need to know about the product, payments, and onboarding.
+              Everything you need to know about switching from RentOk, spreadsheets, or physical registers.
             </p>
           </div>
 
@@ -636,7 +753,7 @@ export default function LandingPage() {
                     <span>{faq.q}</span>
                     <ChevronDown
                       size={20}
-                      color="#94A3B8"
+                      color="#64748B"
                       style={{
                         transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
                         transition: "transform 0.25s ease",
@@ -651,7 +768,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= Footer ================= */}
+      {/* ================= Clean Modern Footer ================= */}
       <footer className="landingFooter">
         <div className="landingContainer">
           <div className="footerGrid">
@@ -660,51 +777,51 @@ export default function LandingPage() {
                 <div className="logoIconBox" style={{ width: "36px", height: "36px" }}>
                   <Building2 size={20} color="#FFFFFF" />
                 </div>
-                <span className="logoText" style={{ fontSize: "18px" }}>OneStay360</span>
+                <span className="logoText" style={{ fontSize: "19px", color: "#FFFFFF" }}>OneStay360</span>
               </div>
-              <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#64748B", marginBottom: "20px", maxWidth: "320px" }}>
-                India&apos;s premier smart co-living and PG management operating system. Zero brokerage, zero payment cuts, 100% digital living.
+              <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#94A3B8", marginBottom: "20px", maxWidth: "320px" }}>
+                India&apos;s smart co-living and PG management operating system. Zero brokerage, zero payment cuts, 100% digital living.
               </p>
               <div style={{ fontSize: "13px", color: "#94A3B8" }}>
                 <div>Support: <a href="mailto:support@onestay360.com" style={{ color: "#2DD4BF", textDecoration: "none" }}>support@onestay360.com</a></div>
-                <div style={{ marginTop: "4px" }}>Helpline: <span style={{ color: "#F8FAFC" }}>+91 9359303097</span></div>
+                <div style={{ marginTop: "4px" }}>Helpline: <span style={{ color: "#FFFFFF" }}>+91 9359303097</span></div>
               </div>
             </div>
 
             <div>
-              <h4 className="footerColTitle">For Tenants</h4>
+              <h4 className="footerColTitle">Features</h4>
               <ul className="footerLinks">
-                <li><a href="#dual-solution">Explore Verified PGs</a></li>
-                <li><a href="#dual-solution">360° Virtual Tours</a></li>
-                <li><a href="#dual-solution">0% Fee UPI Rent</a></li>
-                <li><a href="#dual-solution">HRA Receipts</a></li>
-                <li><a href="#downloads">Download App</a></li>
+                <li><a href="#matrix-demo">Smart Bed Matrix</a></li>
+                <li><a href="#comparison">Why OneStay360</a></li>
+                <li><a href="#savings-calculator">0% UPI Settlements</a></li>
+                <li><a href="#features">360° Virtual Tours</a></li>
+                <li><a href="#downloads">WhatsApp Notices</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="footerColTitle">For PG Owners</h4>
               <ul className="footerLinks">
-                <li><a href="#savings-calculator">Zero-Loss Collections</a></li>
-                <li><a href="#dual-solution">Bed Inventory Matrix</a></li>
-                <li><a href="#dual-solution">WhatsApp Reminders</a></li>
-                <li><a href="#savings-calculator">Savings Calculator</a></li>
-                <li><a href="#downloads">Register Property</a></li>
+                <li><a href="#savings-calculator">Zero-Loss Calculator</a></li>
+                <li><a href="#downloads">Register PG Free</a></li>
+                <li><a href="#matrix-demo">Occupancy Map</a></li>
+                <li><a href="#faq">Switch from RentOk</a></li>
+                <li><a href="#downloads">Business App</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="footerColTitle">Platform &amp; Administration</h4>
+              <h4 className="footerColTitle">Administration</h4>
               <ul className="footerLinks">
                 <li>
                   <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#2DD4BF" }}>
                     SuperAdmin Console <ExternalLink size={14} />
                   </Link>
                 </li>
-                <li><a href="#faq">Frequently Asked Questions</a></li>
+                <li><a href="#faq">Help &amp; FAQ</a></li>
                 <li><a href="#">Privacy Policy</a></li>
                 <li><a href="#">Terms &amp; Conditions</a></li>
-                <li><a href="#">Security &amp; Compliance</a></li>
+                <li><a href="#">Security Safeguards</a></li>
               </ul>
             </div>
           </div>
