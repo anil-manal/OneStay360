@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, getDocs, doc, updateDoc, writeBatch, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -510,14 +511,32 @@ export default function BusinessConsole() {
                       </span>
                     )}
                   </td>
-                  <td>
-                    <button
-                      className="tableActionBtn"
-                      onClick={() => handleOpenDrawer(biz)}
-                      style={{ display: "flex", alignItems: "center", gap: "6px" }}
-                    >
-                      <Sliders size={14} /> Audit Dossier
-                    </button>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <Link
+                        href={`/admin/business/${biz.id}/properties`}
+                        className="btnPrimary"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "12px",
+                          padding: "6px 12px",
+                          textDecoration: "none",
+                          borderRadius: "6px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Building2 size={13} /> Properties ({biz.totalProperties})
+                      </Link>
+                      <button
+                        className="tableActionBtn"
+                        onClick={() => handleOpenDrawer(biz)}
+                        style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                      >
+                        <Sliders size={14} /> Audit Dossier
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -559,9 +578,27 @@ export default function BusinessConsole() {
                   Owner: <strong>{selectedBiz.ownerName}</strong> &bull; {selectedBiz.phone} &bull; HQ: {selectedBiz.city}
                 </p>
               </div>
-              <button className="closeBtn" onClick={() => setSelectedBiz(null)}>
-                <XCircle size={24} />
-              </button>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <Link
+                  href={`/admin/business/${selectedBiz.id}/properties`}
+                  className="btnPrimary"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontSize: "12px",
+                    padding: "8px 14px",
+                    textDecoration: "none",
+                    borderRadius: "6px",
+                    fontWeight: 600,
+                  }}
+                >
+                  <Building2 size={14} /> Open Properties Portfolio &rarr;
+                </Link>
+                <button className="closeBtn" onClick={() => setSelectedBiz(null)}>
+                  <XCircle size={24} />
+                </button>
+              </div>
             </div>
 
             {/* Navigation Tabs */}

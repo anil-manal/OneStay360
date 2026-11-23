@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, collectionGroup, getDocs, doc, writeBatch, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -678,7 +679,13 @@ export default function PropertyConsole() {
                     <span className="cityLabel">{prop.city}</span>
                   </td>
                   <td>
-                    <strong>{prop.businessName}</strong>
+                    <Link
+                      href={`/admin/business/${prop.businessId}/properties`}
+                      style={{ color: "var(--teal-primary)", textDecoration: "none", fontWeight: 700 }}
+                      title="View all properties in this chain"
+                    >
+                      {prop.businessName} &rarr;
+                    </Link>
                     <span className="subtext" style={{ display: "block" }}>{prop.businessPhone}</span>
                   </td>
                   <td>
