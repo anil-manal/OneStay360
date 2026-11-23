@@ -3,10 +3,15 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Overview from "@/components/dashboard/Overview";
+import BedMatrixConsole from "@/components/inventory/BedMatrixConsole";
+import TenantMasterConsole from "@/components/tenants/TenantMasterConsole";
 import BusinessConsole from "@/components/businesses/BusinessConsole";
 import PropertyConsole from "@/components/properties/PropertyConsole";
-import BillingConsole from "@/components/billing/BillingConsole";
+import FintechConsole from "@/components/fintech/FintechConsole";
+import OperationsConsole from "@/components/operations/OperationsConsole";
+import CommunicationsConsole from "@/components/communications/CommunicationsConsole";
 import DisputeConsole from "@/components/support/DisputeConsole";
+import SystemGovernanceConsole from "@/components/system/SystemGovernanceConsole";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -62,10 +67,15 @@ export default function AdminPage() {
 
         <section className="workspaceContent">
           {activeTab === "overview" && <Overview />}
+          {activeTab === "bed-matrix" && <BedMatrixConsole />}
+          {activeTab === "tenants" && <TenantMasterConsole />}
           {activeTab === "landlords" && <BusinessConsole />}
           {activeTab === "properties" && <PropertyConsole />}
-          {activeTab === "billing" && <BillingConsole />}
+          {activeTab === "fintech" && <FintechConsole />}
+          {activeTab === "operations" && <OperationsConsole />}
+          {activeTab === "communications" && <CommunicationsConsole />}
           {activeTab === "disputes" && <DisputeConsole />}
+          {activeTab === "system" && <SystemGovernanceConsole />}
         </section>
       </main>
     </div>

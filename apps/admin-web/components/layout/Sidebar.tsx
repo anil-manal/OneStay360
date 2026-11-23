@@ -1,10 +1,15 @@
 import React from "react";
 import {
   Gauge,
+  Grid3X3,
   UsersRound,
   Building2,
-  CircleDollarSign,
+  Users,
+  CreditCard,
+  Wrench,
   MessageSquareText,
+  ShieldCheck,
+  Scale,
   LockKeyhole,
 } from "lucide-react";
 
@@ -15,11 +20,16 @@ interface SidebarProps {
 
 export default function Sidebar({ currentTab, onTabChange }: SidebarProps) {
   const menuItems = [
-    { id: "overview", label: "Dashboard", icon: Gauge },
+    { id: "overview", label: "Executive Pulse", icon: Gauge },
+    { id: "bed-matrix", label: "Bed Matrix Master", icon: Grid3X3 },
+    { id: "tenants", label: "Tenant Dossier", icon: Users },
     { id: "landlords", label: "PG Landlords", icon: UsersRound },
-    { id: "properties", label: "Properties", icon: Building2 },
-    { id: "billing", label: "Billing & Invoices", icon: CircleDollarSign },
-    { id: "disputes", label: "Disputes Desk", icon: MessageSquareText },
+    { id: "properties", label: "Properties & Rooms", icon: Building2 },
+    { id: "fintech", label: "Fintech & Gateway", icon: CreditCard },
+    { id: "operations", label: "Operations & SLA", icon: Wrench },
+    { id: "communications", label: "Communications Hub", icon: MessageSquareText },
+    { id: "disputes", label: "Disputes Desk", icon: Scale },
+    { id: "system", label: "System Governance", icon: ShieldCheck },
   ];
 
   return (
@@ -31,7 +41,7 @@ export default function Sidebar({ currentTab, onTabChange }: SidebarProps) {
           <span>Admin Portal</span>
         </div>
       </div>
-      <nav className="sidebarMenu">
+      <nav className="sidebarMenu" style={{ overflowY: "auto" }}>
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -50,7 +60,7 @@ export default function Sidebar({ currentTab, onTabChange }: SidebarProps) {
       </nav>
       <div className="sidebarFooter">
         <LockKeyhole size={14} />
-        <span>Platform Secure</span>
+        <span>Platform Cryptosecure</span>
       </div>
     </aside>
   );
