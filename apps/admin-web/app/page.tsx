@@ -74,7 +74,7 @@ export default function LightLandingPage() {
 
   const faqs = [
     {
-      q: "How does OneStay360 beat traditional tools like RentOk on payment gateway charges?",
+      q: "How does OneStay360 eliminate payment gateway charges compared to legacy PG software?",
       a: "Most platforms route rent payments through standard aggregators, costing PG owners or tenants 2.0% to 2.36% in transaction fees. On ₹20 Lakhs monthly collections, you lose nearly ₹50,000 every month! OneStay360 implements true Direct UPI Intent & Zero-Loss settlement rails where money lands directly in your bank account with ₹0 gateway commission.",
     },
     {
@@ -244,7 +244,7 @@ export default function LightLandingPage() {
                     <p style={{ fontSize: "12.5px", color: "#64748B", marginBottom: "16px" }}>Extra profit kept this month vs. traditional 2.36% gateways</p>
                     <div style={{ background: "#F8FAFC", borderRadius: "12px", padding: "14px", border: "1px solid #E2E8F0", marginBottom: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "#64748B", marginBottom: "4px" }}>
-                        <span>RentOk / Razorpay Standard Cut</span>
+                        <span>Generic Gateways &amp; Other PG Apps (2.36%)</span>
                         <span style={{ color: "#EF4444", fontWeight: 600 }}>- ₹58,528.00</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "#64748B" }}>
@@ -339,7 +339,7 @@ export default function LightLandingPage() {
         </div>
       </section>
 
-      {/* ================= Interactive Smart Bed Matrix (Showcasing what beats RentOk) ================= */}
+      {/* ================= Interactive Smart Bed Matrix Demo ================= */}
       <section className="interactiveMatrixSection" id="matrix-demo">
         <div className="landingContainer">
           <div className="sectionHeader">
@@ -457,69 +457,165 @@ export default function LightLandingPage() {
         </div>
       </section>
 
-      {/* ================= Head-to-Head Comparison: OneStay360 vs RentOk ================= */}
+      {/* ================= Modern Feature Matrix Comparison ================= */}
       <section className="comparisonSection" id="comparison">
         <div className="landingContainer">
           <div className="sectionHeader">
-            <span className="sectionTag">The Clear Winner</span>
-            <h2 className="sectionTitle">Why Switch to OneStay360?</h2>
+            <span className="sectionTag">The Clear Difference</span>
+            <h2 className="sectionTitle">Why Property Leaders Choose OneStay360</h2>
             <p className="sectionSubtitle">
-              Compare OneStay360 against RentOk and traditional manual management to see why leading PG chains are migrating.
+              See how OneStay360 compares directly against traditional spreadsheets and generic PG software.
             </p>
           </div>
 
-          <div className="tableWrapper">
-            <table className="compareTable">
+          <div className="landingComparisonWrapper">
+            <table className="landingCompareTable">
               <thead>
                 <tr>
-                  <th style={{ width: "32%" }}>Capability / Feature</th>
-                  <th style={{ width: "24%", color: "#94A3B8" }}>Traditional Registers</th>
-                  <th style={{ width: "22%", color: "#64748B" }}>RentOk App</th>
-                  <th className="colHighlight" style={{ width: "22%" }}>OneStay360 ✨</th>
+                  <th style={{ width: "32%" }}>Core Platform Capability</th>
+                  <th style={{ width: "23%", color: "#64748B" }}>Manual / Spreadsheets</th>
+                  <th style={{ width: "22%", color: "#64748B" }}>Other PG Apps &amp; Gateways</th>
+                  <th className="thHighlight" style={{ width: "23%" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>OneStay360 Pro</span>
+                      <span style={{ fontSize: "10px", background: "#0D9488", color: "#FFF", padding: "2px 6px", borderRadius: "10px", fontWeight: 700 }}>VERIFIED</span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>UPI Rent Collection Fee</strong></td>
-                  <td>Cash / Manual checking</td>
-                  <td>1.95% - 2.36% Gateway Cut ❌</td>
-                  <td className="colHighlight"><strong>0% Direct UPI Settlement ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>UPI Rent Collection Fee</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Fee charged on digital tenant rent payments</span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Manual Cash / NEFT</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> 1.95% - 2.36% Cut
+                    </span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> 0% Direct Settlement
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Virtual Room Walkthroughs</strong></td>
-                  <td>None (Physical visits only)</td>
-                  <td>Static flat photos only</td>
-                  <td className="colHighlight"><strong>Interactive 360° Panoramic Tours ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Virtual Room Walkthroughs</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Experience before visiting the property</span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Physical visits only</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> Flat photos only
+                    </span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> 360° Panoramic Tours
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Annual Loss on ₹20L/mo Rent</strong></td>
-                  <td>Time lost &amp; unpaid dues</td>
-                  <td>Losing ~₹5,60,000/year to fees ❌</td>
-                  <td className="colHighlight"><strong>₹0 Lost (Keep 100% Net Profit) ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Annual Gateway Loss (₹20L/mo Rent)</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Net margin deducted by payment platforms</span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">High default risk</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> ~₹5,60,000 Lost / yr
+                    </span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> ₹0 Loss (100% Net Profit)
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Automated WhatsApp Invoicing</strong></td>
-                  <td>Manual text messages</td>
-                  <td>Yes (Basic templates)</td>
-                  <td className="colHighlight"><strong>1-Tap Smart UPI Payment Links ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Automated WhatsApp Invoicing</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Scheduled reminders with direct pay links</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> Manual call &amp; SMS
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Generic text reminder</span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> 1-Tap 0%-Fee Pay Link
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Sub-Meter Electricity Splitting</strong></td>
-                  <td>Calculator &amp; notebook</td>
-                  <td>Basic meter logging</td>
-                  <td className="colHighlight"><strong>Automated Roommate Unit Splitter ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Sub-Meter Electricity Splitting</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Per-unit roommate consumption billing</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> Notebook &amp; arguments
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Basic manual total</span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> Auto Roommate Unit Split
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Corporate HRA Receipts</strong></td>
-                  <td>Manual paper slips</td>
-                  <td>PDF receipt</td>
-                  <td className="colHighlight"><strong>Instant PAN-Verified Digital Receipts ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Corporate HRA Rent Receipts</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Official receipts for employee tax savings</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> Paper slips
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Simple PDF slip</span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> PAN-Stamped Instant PDF
+                    </span>
+                  </td>
                 </tr>
                 <tr>
-                  <td><strong>Aadhaar e-KYC &amp; Police Verification</strong></td>
-                  <td>Physical photocopies</td>
-                  <td>Digital KYC</td>
-                  <td className="colHighlight"><strong>Paperless e-KYC &amp; Exportable Packet ✅</strong></td>
+                  <td>
+                    <strong style={{ color: "#0F172A", display: "block" }}>Aadhaar e-KYC &amp; Police Verification</strong>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Compliant tenant identity background check</span>
+                  </td>
+                  <td>
+                    <span className="badgeCross">
+                      <XCircle size={14} /> Paper photocopies
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badgeMuted">Basic photo upload</span>
+                  </td>
+                  <td className="colHighlight">
+                    <span className="badgeCheck">
+                      <Check size={14} /> Instant e-KYC Packet
+                    </span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -535,7 +631,7 @@ export default function LightLandingPage() {
               <div>
                 <span className="sectionTag">Fintech Edge</span>
                 <h2 style={{ fontSize: "32px", fontWeight: 800, color: "#0F172A", marginBottom: "14px" }}>
-                  Calculate What RentOk &amp; Gateways Cost You
+                  Calculate What Generic Gateways Cost You
                 </h2>
                 <p style={{ fontSize: "15px", color: "#64748B", lineHeight: 1.6, marginBottom: "24px" }}>
                   Standard payment gateways take <strong>2.0% + 18% GST (2.36%)</strong> on rental transactions. 
@@ -736,7 +832,7 @@ export default function LightLandingPage() {
             <span className="sectionTag">Got Questions?</span>
             <h2 className="sectionTitle">Frequently Asked Questions</h2>
             <p className="sectionSubtitle">
-              Everything you need to know about switching from RentOk, spreadsheets, or physical registers.
+              Everything you need to know about switching from older software, spreadsheets, or physical registers.
             </p>
           </div>
 
@@ -805,7 +901,7 @@ export default function LightLandingPage() {
                 <li><a href="#savings-calculator">Zero-Loss Calculator</a></li>
                 <li><a href="#downloads">Register PG Free</a></li>
                 <li><a href="#matrix-demo">Occupancy Map</a></li>
-                <li><a href="#faq">Switch from RentOk</a></li>
+                <li><a href="#faq">Switch from Legacy Apps</a></li>
                 <li><a href="#downloads">Business App</a></li>
               </ul>
             </div>
