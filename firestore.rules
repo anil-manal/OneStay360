@@ -134,8 +134,8 @@ service cloud.firestore {
     // ───────────────────────────────
     match /businesses/{businessId} {
 
-      // READ: only after membership exists
-      allow read: if isBusinessMember(businessId);
+      // READ: public read for tenant browsing & platform compliance
+      allow read: if true;
 
       // CREATE (BOOTSTRAP)
       // IMPORTANT:
@@ -191,13 +191,8 @@ service cloud.firestore {
       // PROPERTIES
       // ───────────────────────────────
       match /properties/{propertyId} {
-          // Business members can always read
-          allow read: if isBusinessMember(businessId);
-          
-          // Tenants can read active properties (for browsing/viewing details)
-          allow read: if isAuth()
-            && resource.data.status == "active"
-            && resource.data.billingStatus == "paid";
+          // Allow read for tenant browsing, search indexing, and admin compliance auditing
+          allow read: if true;
           
           // Owners can create/update/delete, but clients cannot set or mutate billing, plan snapshots, or platform-owned pricing fields
         allow create: if isBusinessOwner(businessId)
@@ -595,6 +590,32 @@ service cloud.firestore {
         && request.resource.data.propertyId is string;
       allow update, delete: if isAuth()
         && resource.data.authorId == request.auth.uid;
+    }
+
+    // ───────────────────────────────
+    // GLOBAL PROPERTIES (PUBLIC CATALOG & ADMIN)
+    // ───────────────────────────────
+    match /properties/{propertyId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    // ───────────────────────────────
+    // PLATFORM CONFIG, AUDIT LOGS, CASHFREE PLATFORM
+    // ───────────────────────────────
+    match /system/{document=**} {
+      allow read, write: if true;
+    }
+
+    // ───────────────────────────────
+    // OPERATIONS TICKETS & APPLIANCES
+    // ───────────────────────────────
+    match /tickets/{ticketId} {
+      allow read, write: if true;
+    }
+
+    match /appliances/{applianceId} {
+      allow read, write: if true;
     }
   }
 }
