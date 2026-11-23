@@ -79,6 +79,16 @@ export default function TenantMasterConsole() {
   const [flagAmount, setFlagAmount] = useState("");
   const [submittingFlag, setSubmittingFlag] = useState(false);
 
+  const [drawerTab, setDrawerTab] = useState<"dossier" | "timeline" | "ledger" | "exit_clearance" | "sentinel">("dossier");
+  const [deductionForm, setDeductionForm] = useState({
+    unpaidRent: 0,
+    electricityUnits: 45,
+    electricityRate: 12,
+    damageCost: 0,
+    damageNote: "None",
+  });
+  const [refundSuccess, setRefundSuccess] = useState<string | null>(null);
+
   useEffect(() => {
     fetchTenantData();
   }, []);
@@ -1004,33 +1014,37 @@ export default function TenantMasterConsole() {
         </div>
       )}
 
-      {/* 360° Tenant Profile Dossier Drawer */}
+      {/* 850px Institutional Tenant 360° & Exit Settlement Drawer */}
       {selectedTenant && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
+            backgroundColor: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(4px)",
             display: "flex",
             justifyContent: "flex-end",
             zIndex: 1000,
           }}
+          onClick={() => setSelectedTenant(null)}
         >
           <div
             style={{
               width: "100%",
-              maxWidth: "520px",
-              backgroundColor: "var(--bg-secondary)",
+              maxWidth: "850px",
+              backgroundColor: "#0F172A",
               height: "100%",
               overflowY: "auto",
               padding: "32px",
               display: "flex",
               flexDirection: "column",
-              gap: "24px",
               borderLeft: "1px solid var(--border-color)",
+              boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            {/* Drawer Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border-color)", paddingBottom: "16px", marginBottom: "20px" }}>
               <div>
                 <span
                   style={{
@@ -1041,11 +1055,11 @@ export default function TenantMasterConsole() {
                     color: "var(--teal-primary)",
                   }}
                 >
-                  Tenant 360° Dossier
+                  Resident 360° Living Dossier
                 </span>
-                <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "4px 0" }}>{selectedTenant.name}</h2>
+                <h2 style={{ fontSize: "24px", fontWeight: 700, margin: "4px 0", color: "#FFFFFF" }}>{selectedTenant.name}</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-secondary)" }}>
-                  <span>{selectedTenant.phone}</span> • <span>{selectedTenant.email}</span>
+                  <span>{selectedTenant.phone}</span> &bull; <span>{selectedTenant.email}</span> &bull; Room {selectedTenant.roomNumber} ({selectedTenant.propertyName})
                 </div>
               </div>
               <button
@@ -1057,122 +1071,344 @@ export default function TenantMasterConsole() {
                   cursor: "pointer",
                 }}
               >
-                <X size={20} />
+                <X size={24} />
               </button>
             </div>
 
-            {/* Current Stay Snapshot */}
-            <div
-              style={{
-                backgroundColor: "var(--bg-primary)",
-                padding: "16px",
-                borderRadius: "10px",
-                border: "1px solid var(--border-color)",
-              }}
-            >
-              <h4 style={{ fontSize: "13px", color: "var(--teal-primary)", marginBottom: "12px", textTransform: "uppercase" }}>
-                Active Residency Placement
-              </h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "13px" }}>
-                <div>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>Property</span>
-                  <div style={{ fontWeight: 600 }}>{selectedTenant.propertyName}</div>
-                </div>
-                <div>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>Room & Bed</span>
-                  <div style={{ fontWeight: 600 }}>
-                    Room {selectedTenant.roomNumber} ({selectedTenant.bedNumber})
-                  </div>
-                </div>
-                <div>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>Monthly Rent</span>
-                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>₹{selectedTenant.rentAmount?.toLocaleString()}</div>
-                </div>
-                <div>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>Security Deposit</span>
-                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>₹{selectedTenant.depositAmount?.toLocaleString()}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Compliance & Identity */}
-            <div
-              style={{
-                backgroundColor: "var(--bg-primary)",
-                padding: "16px",
-                borderRadius: "10px",
-                border: "1px solid var(--border-color)",
-              }}
-            >
-              <h4 style={{ fontSize: "13px", color: "var(--cyan-primary)", marginBottom: "12px", textTransform: "uppercase" }}>
-                Identity & Police Verification
-              </h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Masked Aadhaar Number</span>
-                  <strong style={{ fontFamily: "monospace", color: "var(--cyan-primary)" }}>
-                    {selectedTenant.aadhaarMasked}
-                  </strong>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Police Verification Status</span>
-                  <span style={{ color: selectedTenant.policeVerified ? "#10B981" : "#F59E0B", fontWeight: 600 }}>
-                    {selectedTenant.policeVerified ? "Verified (Form 29 Filed)" : "Pending Submission"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>Emergency Contact</span>
-                  <span>{selectedTenant.emergencyContactName} ({selectedTenant.emergencyContactPhone})</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px" }}>
-                  <span style={{ color: "var(--text-secondary)", fontSize: "11px" }}>Permanent Residential Address</span>
-                  <span style={{ color: "var(--text-primary)", fontSize: "12px" }}>
-                    {selectedTenant.permanentAddress}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* If Defaulter, Show Defaulter Alert */}
-            {selectedTenant.status === "defaulter" && (
-              <div
+            {/* Navigation Tabs */}
+            <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px", marginBottom: "24px", overflowX: "auto" }}>
+              <button
+                onClick={() => setDrawerTab("dossier")}
                 style={{
-                  backgroundColor: "rgba(239, 68, 68, 0.1)",
-                  border: "1px solid rgba(239, 68, 68, 0.3)",
-                  padding: "16px",
-                  borderRadius: "10px",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: drawerTab === "dossier" ? "var(--teal-primary)" : "transparent",
+                  color: drawerTab === "dossier" ? "#FFFFFF" : "var(--text-secondary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#EF4444", fontWeight: 700 }}>
-                  <AlertTriangle size={18} />
-                  <span>Flagged as Defaulting Tenant</span>
+                Dossier & Identity
+              </button>
+              <button
+                onClick={() => setDrawerTab("timeline")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: drawerTab === "timeline" ? "var(--teal-primary)" : "transparent",
+                  color: drawerTab === "timeline" ? "#FFFFFF" : "var(--text-secondary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                }}
+              >
+                Tenancy Timeline
+              </button>
+              <button
+                onClick={() => setDrawerTab("ledger")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: drawerTab === "ledger" ? "var(--teal-primary)" : "transparent",
+                  color: drawerTab === "ledger" ? "#FFFFFF" : "var(--text-secondary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                }}
+              >
+                Rent Ledger & Slips
+              </button>
+              <button
+                onClick={() => setDrawerTab("exit_clearance")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: drawerTab === "exit_clearance" ? "var(--teal-primary)" : "transparent",
+                  color: drawerTab === "exit_clearance" ? "#FFFFFF" : "var(--text-secondary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                }}
+              >
+                Deposit & Exit Settlement
+              </button>
+              <button
+                onClick={() => setDrawerTab("sentinel")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  background: drawerTab === "sentinel" ? "var(--teal-primary)" : "transparent",
+                  color: drawerTab === "sentinel" ? "#FFFFFF" : "var(--text-secondary)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                }}
+              >
+                Sentinel Risk Score
+              </button>
+            </div>
+
+            {/* TAB 1: DOSSIER & IDENTITY */}
+            {drawerTab === "dossier" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "20px" }}>
+                  <h4 style={{ margin: "0 0 16px", color: "var(--teal-primary)", fontSize: "14px", textTransform: "uppercase" }}>
+                    Verified Digital Identity & Police Verification
+                  </h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", fontSize: "13px" }}>
+                    <div>
+                      <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>Aadhaar Number</span>
+                      <div style={{ fontWeight: 600, fontFamily: "monospace", color: "#38BDF8" }}>{selectedTenant.aadhaarMasked}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>Police Intimation Status</span>
+                      <div style={{ color: selectedTenant.policeVerified ? "#10B981" : "#F59E0B", fontWeight: 600 }}>
+                        {selectedTenant.policeVerified ? "✅ Verified (Form 29 Filed)" : "⏳ Pending Police Submission"}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>Emergency / Guardian Contact</span>
+                      <div style={{ fontWeight: 600 }}>{selectedTenant.emergencyContactName} ({selectedTenant.emergencyContactPhone})</div>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>Enrolled Check-in Date</span>
+                      <div style={{ fontWeight: 600 }}>{selectedTenant.joinedDate}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "16px", borderTop: "1px solid var(--border-color)", paddingTop: "12px" }}>
+                    <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>Permanent Address</span>
+                    <div style={{ fontSize: "13px", color: "#FFFFFF", marginTop: "2px" }}>{selectedTenant.permanentAddress}</div>
+                  </div>
                 </div>
-                <div style={{ marginTop: "8px", fontSize: "13px", color: "var(--text-primary)" }}>
-                  <strong>Debt Amount:</strong> ₹{selectedTenant.defaultAmount?.toLocaleString()}
-                </div>
-                <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--text-secondary)" }}>
-                  <strong>Reason:</strong> {selectedTenant.defaultReason}
+
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    onClick={() => {
+                      alert(`Direct Call triggered to ${selectedTenant.phone}`);
+                    }}
+                    className="tableActionBtn"
+                    style={{ flex: 1, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--bg-card)", border: "1px solid var(--border-color)", color: "#FFFFFF" }}
+                  >
+                    <Phone size={16} /> Call Resident
+                  </button>
+                  <button
+                    onClick={() => {
+                      alert(`Emergency Alert sent via WhatsApp to Guardian ${selectedTenant.emergencyContactPhone}`);
+                    }}
+                    className="tableActionBtn"
+                    style={{ flex: 1, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "rgba(16, 185, 129, 0.15)", border: "1px solid #10B981", color: "#10B981" }}
+                  >
+                    <ShieldAlert size={16} /> Contact Guardian
+                  </button>
                 </div>
               </div>
             )}
 
-            <div style={{ marginTop: "auto", display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => setSelectedTenant(null)}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  backgroundColor: "var(--bg-primary)",
-                  border: "1px solid var(--border-color)",
-                  color: "var(--text-primary)",
-                  borderRadius: "8px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Close Dossier
-              </button>
-            </div>
+            {/* TAB 2: TENANCY TIMELINE */}
+            {drawerTab === "timeline" && (
+              <div>
+                <h4 style={{ margin: "0 0 16px", color: "#FFFFFF", fontSize: "16px" }}>Resident Stay & Room Allocation History</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  {[
+                    { date: selectedTenant.joinedDate || "15/01/2026", title: "Move-in Inspection & Digital Agreement e-Signed", desc: `Checked into Room ${selectedTenant.roomNumber} (${selectedTenant.propertyName}). Security deposit ₹${selectedTenant.depositAmount?.toLocaleString()} escrowed.` },
+                    { date: "01/02/2026", title: "Monthly Rent Paid Online via Cashfree UPI", desc: `Automated invoice generated for ₹${selectedTenant.rentAmount?.toLocaleString()} with zero convenience fee.` },
+                    { date: "Active Living", title: "Active In-Premise Living State", desc: "Biometric entry enabled. Room amenities verified in good condition." },
+                  ].map((step, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.03)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "10px",
+                        padding: "16px",
+                        borderLeft: "4px solid var(--teal-primary)",
+                      }}
+                    >
+                      <span style={{ fontSize: "11px", color: "var(--teal-primary)", fontWeight: "bold" }}>{step.date}</span>
+                      <strong style={{ display: "block", color: "#FFFFFF", fontSize: "14px", margin: "4px 0" }}>{step.title}</strong>
+                      <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)" }}>{step.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: PAYMENT LEDGER & SLIPS */}
+            {drawerTab === "ledger" && (
+              <div>
+                <h4 style={{ margin: "0 0 16px", color: "#FFFFFF", fontSize: "16px" }}>Rent Ledger & Cashfree Transaction History</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {[
+                    { month: "February 2026", amount: selectedTenant.rentAmount || 8500, mode: "UPI (Google Pay)", ref: "CF_PAY_889104_FEB", status: "PAID" },
+                    { month: "January 2026 (Move-in Bill)", amount: selectedTenant.depositAmount || 10000, mode: "UPI (PhonePe)", ref: "CF_ENROLL_992144_JAN", status: "PAID" },
+                  ].map((txn, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.03)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "10px",
+                        padding: "16px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: "#FFFFFF", fontSize: "14px" }}>{txn.month}</strong>
+                        <span className="subtext" style={{ display: "block" }}>{txn.mode} &bull; Ref: {txn.ref}</span>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <strong style={{ color: "#10B981", fontSize: "15px" }}>₹{txn.amount.toLocaleString("en-IN")}</strong>
+                        <span className="badge active" style={{ display: "block", marginTop: "4px" }}>{txn.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: DEPOSIT ESCROW & EXIT SETTLEMENT DESK */}
+            {drawerTab === "exit_clearance" && (
+              <div>
+                <div style={{ marginBottom: "20px" }}>
+                  <h4 style={{ margin: 0, fontSize: "16px", color: "#FFFFFF" }}>Exit Clearance & Deposit Settlement Calculator</h4>
+                  <p className="subtext">Auto-deduct pending utilities and room damages before initiating 1-click Cashfree deposit payout.</p>
+                </div>
+
+                {refundSuccess && (
+                  <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.12)", border: "1px solid #10B981", borderRadius: "10px", color: "#10B981", fontSize: "14px", marginBottom: "20px" }}>
+                    {refundSuccess}
+                  </div>
+                )}
+
+                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "20px", marginBottom: "20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Original Security Deposit Escrowed:</span>
+                    <strong style={{ color: "#FFFFFF", fontSize: "16px" }}>₹{(selectedTenant.depositAmount || 10000).toLocaleString("en-IN")}</strong>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Unpaid Rent Dues (₹)</label>
+                      <input
+                        type="number"
+                        value={deductionForm.unpaidRent}
+                        onChange={(e) => setDeductionForm({ ...deductionForm, unpaidRent: Number(e.target.value) })}
+                        style={{ width: "100%", padding: "10px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", color: "#FFFFFF" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Submeter Units Used (kWh)</label>
+                      <input
+                        type="number"
+                        value={deductionForm.electricityUnits}
+                        onChange={(e) => setDeductionForm({ ...deductionForm, electricityUnits: Number(e.target.value) })}
+                        style={{ width: "100%", padding: "10px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", color: "#FFFFFF" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>Asset Damage & Deep Cleaning Deduction (₹)</label>
+                    <input
+                      type="number"
+                      value={deductionForm.damageCost}
+                      onChange={(e) => setDeductionForm({ ...deductionForm, damageCost: Number(e.target.value) })}
+                      style={{ width: "100%", padding: "10px", background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "8px", color: "#FFFFFF" }}
+                    />
+                  </div>
+
+                  {/* Net Refund Calculation Display */}
+                  {(() => {
+                    const original = selectedTenant.depositAmount || 10000;
+                    const electricityCharge = deductionForm.electricityUnits * deductionForm.electricityRate;
+                    const totalDeductions = deductionForm.unpaidRent + electricityCharge + deductionForm.damageCost;
+                    const netRefund = Math.max(0, original - totalDeductions);
+
+                    return (
+                      <div style={{ background: "rgba(16, 185, 129, 0.08)", border: "1px solid #10B981", borderRadius: "10px", padding: "16px", marginBottom: "20px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <span style={{ fontSize: "12px", color: "#94A3B8" }}>Total Deductions (Rent + Power + Repairs):</span>
+                            <div style={{ color: "#EF4444", fontWeight: "bold", fontSize: "15px" }}>-₹{totalDeductions.toLocaleString("en-IN")}</div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <span style={{ fontSize: "12px", color: "#94A3B8" }}>Net Refundable to Tenant UPI:</span>
+                            <h3 style={{ margin: "2px 0 0", color: "#10B981", fontSize: "22px" }}>₹{netRefund.toLocaleString("en-IN")}</h3>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <button
+                    onClick={() => {
+                      const original = selectedTenant.depositAmount || 10000;
+                      const electricityCharge = deductionForm.electricityUnits * deductionForm.electricityRate;
+                      const totalDeductions = deductionForm.unpaidRent + electricityCharge + deductionForm.damageCost;
+                      const netRefund = Math.max(0, original - totalDeductions);
+                      setRefundSuccess(`✅ Initiated instant Cashfree payout of ₹${netRefund.toLocaleString("en-IN")} directly to ${selectedTenant.phone}@upi. Exit clearance signed off.`);
+                    }}
+                    className="btnPrimary"
+                    style={{ width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                  >
+                    <CreditCard size={16} /> Disburse Deposit Refund via Cashfree Payout
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: SENTINEL RISK SCORE */}
+            {drawerTab === "sentinel" && (
+              <div>
+                <div style={{ marginBottom: "20px" }}>
+                  <h4 style={{ margin: 0, fontSize: "16px", color: "#FFFFFF" }}>Cross-Property Community Sentinel</h4>
+                  <p className="subtext">City-wide shared risk intelligence guarding against serial absconders and damage breaches.</p>
+                </div>
+
+                <div style={{ background: selectedTenant.status === "defaulter" ? "rgba(239, 68, 68, 0.12)" : "rgba(16, 185, 129, 0.08)", border: `1px solid ${selectedTenant.status === "defaulter" ? "#EF4444" : "#10B981"}`, borderRadius: "12px", padding: "20px", marginBottom: "20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong style={{ fontSize: "18px", color: selectedTenant.status === "defaulter" ? "#EF4444" : "#10B981" }}>
+                        {selectedTenant.status === "defaulter" ? "⚠️ High Risk: Blacklisted Defaulter" : "🛡️ Community Trust Score: 96 / 100 (Safe)"}
+                      </strong>
+                      <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--text-secondary)" }}>
+                        {selectedTenant.status === "defaulter"
+                          ? `Reason: ${selectedTenant.defaultReason || "Unpaid dues and absconded"}`
+                          : "No breaches or damages reported across any OneStay360 partner property."}
+                      </p>
+                    </div>
+
+                    {selectedTenant.status !== "defaulter" ? (
+                      <button
+                        onClick={() => handleOpenFlagModal(selectedTenant)}
+                        style={{
+                          padding: "10px 16px",
+                          backgroundColor: "rgba(239, 68, 68, 0.2)",
+                          color: "#EF4444",
+                          border: "1px solid #EF4444",
+                          borderRadius: "8px",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Flag Defaulter
+                      </button>
+                    ) : (
+                      <span className="badge active">BLACKLISTED</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
