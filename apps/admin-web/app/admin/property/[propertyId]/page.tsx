@@ -152,6 +152,85 @@ const DEFAULT_ROOMS: RoomInfo[] = [
   },
 ];
 
+function normalizeRooms(rawRooms: any[], basePrice: number, pricing?: any): RoomInfo[] {
+  if (!Array.isArray(rawRooms) || rawRooms.length === 0) {
+    return DEFAULT_ROOMS;
+  }
+
+  return rawRooms.map((r: any, idx: number) => {
+    const roomId = r.id || r.roomId || `R${r.roomNumber || idx + 101}`;
+    const roomNumber = String(r.roomNumber || idx + 101);
+    const floor = Number(r.floor || Math.floor(parseInt(roomNumber, 10) / 100) || 1);
+    const sharingType = Number(
+      r.sharingType || (r.occupancyType === "Single" ? 1 : r.occupancyType === "Triple" ? 3 : 2)
+    );
+    const hasAC = Boolean(r.hasAC || r.ac);
+    const roomPrice = Number(
+      r.price ||
+      (sharingType === 1 ? pricing?.single : sharingType === 3 ? pricing?.triple : pricing?.double) ||
+      basePrice ||
+      8000
+    );
+
+    const submeterPrev = Number(r.submeterPrev || 1000 + idx * 120);
+    const submeterCurr = Number(r.submeterCurr || submeterPrev + 145);
+    const submeterRate = Number(r.submeterRate || 12);
+    const submeterPhotoUrl = r.submeterPhotoUrl || undefined;
+
+    let beds: BedInfo[] = [];
+    if (Array.isArray(r.beds) && r.beds.length > 0) {
+      beds = r.beds.map((b: any, bIdx: number) => {
+        const bedId = b.id || b.bedId || `B_${roomId}_${bIdx + 1}`;
+        const bedNumber = b.bedNumber
+          ? (String(b.bedNumber).includes("-") ? String(b.bedNumber) : `${roomNumber}-${b.bedNumber}`)
+          : `${roomNumber}-${String.fromCharCode(65 + bIdx)}`;
+        const isOccupied = Boolean(b.isOccupied || b.status === "occupied");
+        const isMaintenance = b.status === "maintenance";
+        const status: "occupied" | "vacant" | "maintenance" | "reserved" = isMaintenance
+          ? "maintenance"
+          : isOccupied
+          ? "occupied"
+          : "vacant";
+
+        return {
+          id: bedId,
+          bedNumber,
+          status,
+          tenantName: b.tenantName || (isOccupied ? `Resident in ${roomNumber}` : null),
+          tenantPhone: b.tenantPhone || (isOccupied ? `+91 98201 ${10000 + idx * 10 + bIdx}` : null),
+          monthlyRent: Number(b.monthlyRent || roomPrice),
+        };
+      });
+    } else {
+      const bedCount = Number(r.maxBeds || sharingType || 2);
+      for (let i = 0; i < bedCount; i++) {
+        const isOcc = i === 0;
+        beds.push({
+          id: `B_${roomId}_${i + 1}`,
+          bedNumber: `${roomNumber}-${String.fromCharCode(65 + i)}`,
+          status: isOcc ? "occupied" : "vacant",
+          tenantName: isOcc ? `Resident in ${roomNumber}` : null,
+          tenantPhone: isOcc ? `+91 98201 ${10000 + idx * 10 + i}` : null,
+          monthlyRent: roomPrice,
+        });
+      }
+    }
+
+    return {
+      id: roomId,
+      roomNumber,
+      floor,
+      sharingType,
+      hasAC,
+      submeterPrev,
+      submeterCurr,
+      submeterRate,
+      submeterPhotoUrl,
+      beds,
+    };
+  });
+}
+
 const FALLBACK_PROPERTIES: Record<string, PropertyDetails> = {
   PROP_PNQ_001: {
     id: "PROP_PNQ_001",
@@ -277,46 +356,93 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
     try {
       setLoading(true);
       let prop: PropertyDetails | null = FALLBACK_PROPERTIES[propertyId] || null;
+      let rawDoc: any = null;
 
+      // 1. Direct root properties lookup
       try {
         const propDoc = await getDoc(doc(db, "properties", propertyId));
         if (propDoc.exists()) {
-          const d = propDoc.data();
-          const totalBeds = Number(d.totalBeds || d.capacity || 40);
-          const occupiedBeds = Number(d.occupiedBeds || Math.round(totalBeds * 0.75));
-          prop = {
-            id: propertyId,
-            name: d.name || "Unnamed PG",
-            city: d.city || "Pune",
-            cityCode: d.cityCode || "PNQ",
-            address: d.address || d.location || "Central Location",
-            description: d.description || "Premium accommodation with amenities.",
-            totalBeds,
-            occupiedBeds,
-            pricePerBed: Number(d.pricePerBed || 7500),
-            featured: Boolean(d.featured),
-            status: d.status || "active",
-            businessId: d.businessId || "BIZ_001",
-            businessName: d.businessName || "Landlord Chain",
-            businessPhone: d.businessPhone || "+91 98765 00000",
-            ratingAverage: Number(d.ratingAverage || 4.8),
-            ratingCount: Number(d.ratingCount || 34),
-            images: d.images || ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
-            singleRate: Number(d.singleRate || 14000),
-            doubleRate: Number(d.doubleRate || 9500),
-            tripleRate: Number(d.tripleRate || 7500),
-            acSurcharge: Number(d.acSurcharge || 1500),
-            vegFoodRate: Number(d.vegFoodRate || 2500),
-            nonVegFoodRate: Number(d.nonVegFoodRate || 3500),
-            fireNocVerified: Boolean(d.fireNocVerified !== false),
-            fssaiVerified: Boolean(d.fssaiVerified !== false),
-            cctvAudited: Boolean(d.cctvAudited !== false),
-            policeIntimated: Boolean(d.policeIntimated !== false),
-            rooms: d.rooms || DEFAULT_ROOMS,
-          };
+          rawDoc = propDoc.data();
         }
       } catch (e) {
         console.debug("Firestore direct property load notice:", e);
+      }
+
+      // 2. City subcollection lookup fallback if not found in root
+      if (!rawDoc) {
+        const cityMap: Record<string, string> = {
+          AMD: "Ahmedabad",
+          PNQ: "Pune",
+          BLR: "Bangalore",
+          BOM: "Mumbai",
+          DEL: "Delhi",
+          HYD: "Hyderabad",
+          MAA: "Chennai",
+          CCU: "Kolkata",
+        };
+        const matchedCity = Object.entries(cityMap).find(([code]) => propertyId.includes(code))?.[1];
+        const citiesToCheck = matchedCity
+          ? [matchedCity, "Ahmedabad", "Pune", "Bangalore", "Mumbai"]
+          : ["Ahmedabad", "Pune", "Bangalore", "Mumbai", "Delhi", "Hyderabad"];
+
+        for (const city of citiesToCheck) {
+          try {
+            const cityDoc = await getDoc(doc(db, `properties_by_city/${city}/properties`, propertyId));
+            if (cityDoc.exists()) {
+              rawDoc = cityDoc.data();
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (rawDoc) {
+        const d = rawDoc;
+        const pricePerBed = Number(
+          (d.pricing?.double || d.pricing?.single || (d.pricePerBed && d.pricePerBed > 100 ? d.pricePerBed : 0)) ||
+          d.monthlyRent ||
+          (d.pricePerBed && d.pricePerBed > 100 ? d.pricePerBed : 8500)
+        );
+        const normalizedRooms = normalizeRooms(d.rooms, pricePerBed, d.pricing);
+        const totalBeds = Number(d.totalBeds || d.totals?.beds || d.capacity || normalizedRooms.reduce((acc, r) => acc + r.beds.length, 0) || 30);
+        const occupiedBedsCount = normalizedRooms.flatMap(r => r.beds).filter(b => b.status === "occupied").length;
+        const occupiedBeds = Number(
+          d.occupiedBeds ||
+          (d.totals?.beds && d.totals?.availableBeds ? d.totals.beds - d.totals.availableBeds : null) ||
+          occupiedBedsCount ||
+          Math.round(totalBeds * 0.75)
+        );
+
+        prop = {
+          id: propertyId,
+          name: d.name || d.propertyName || "Unnamed Co-Living Residence",
+          city: d.city || "Pune",
+          cityCode: d.cityCode || "PNQ",
+          address: d.address || d.location || "Central Metro Area",
+          description: d.description || "Premium accommodation with amenities.",
+          totalBeds,
+          occupiedBeds,
+          pricePerBed,
+          featured: Boolean(d.featured),
+          status: d.status || "active",
+          businessId: d.businessId || "BIZ_001",
+          businessName: d.businessName || d.ownerName || "Landlord Chain",
+          businessPhone: d.businessPhone || d.contactPhone || "+91 98765 00000",
+          ratingAverage: Number(d.rating?.average || d.ratingAverage || 4.8),
+          ratingCount: Number(d.rating?.count || d.ratingCount || 34),
+          images: d.images && d.images.length > 0 ? d.images : (d.imageUrl ? [d.imageUrl] : ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"]),
+          singleRate: Number(d.pricing?.single || d.singleRate || 14000),
+          doubleRate: Number(d.pricing?.double || d.doubleRate || 9500),
+          tripleRate: Number(d.pricing?.triple || d.tripleRate || 7500),
+          acSurcharge: Number(d.acSurcharge || (d.amenities?.ac ? 1500 : 0) || 1500),
+          vegFoodRate: Number(d.vegFoodRate || 2500),
+          nonVegFoodRate: Number(d.nonVegFoodRate || 3500),
+          fireNocVerified: Boolean(d.fireNocVerified !== false),
+          fssaiVerified: Boolean(d.fssaiVerified !== false),
+          cctvAudited: Boolean(d.cctvAudited !== false),
+          policeIntimated: Boolean(d.policeIntimated !== false),
+          rooms: normalizedRooms,
+        };
       }
 
       if (!prop) {
@@ -649,7 +775,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
               Base Starting Rent
             </span>
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "8px" }}>
-              <span style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A" }}>₹{property.pricePerBed.toLocaleString("en-IN")}</span>
+              <span style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A" }}>₹{(property.pricePerBed || 8500).toLocaleString("en-IN")}</span>
               <span style={{ fontSize: "12px", color: "#64748B" }}>/bed/month</span>
             </div>
             <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
@@ -903,7 +1029,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                             <div style={{ fontSize: "11px", color: "#64748B", marginTop: "2px" }}>{bed.tenantPhone}</div>
                           )}
                           <div style={{ fontSize: "12px", color: "var(--teal-primary)", marginTop: "6px", fontWeight: 700 }}>
-                            ₹{bed.monthlyRent.toLocaleString("en-IN")}/mo
+                            ₹{(bed.monthlyRent || property.pricePerBed || 8500).toLocaleString("en-IN")}/mo
                           </div>
                         </div>
                       );
@@ -1052,7 +1178,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: "12px", color: "#64748B" }}>Total Electricity Charge to Split</div>
                   <strong style={{ fontSize: "22px", color: "var(--teal-primary)" }}>
-                    ₹{(Math.max(0, submeterForm.curr - submeterForm.prev) * submeterForm.rate).toLocaleString("en-IN")}
+                    ₹{(Math.max(0, (submeterForm.curr || 0) - (submeterForm.prev || 0)) * (submeterForm.rate || 12)).toLocaleString("en-IN")}
                   </strong>
                 </div>
               </div>
@@ -1257,7 +1383,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                       </td>
                       <td>{bed.tenantPhone || "+91 98201 12345"}</td>
                       <td>
-                        <strong style={{ color: "var(--teal-primary)" }}>₹{bed.monthlyRent.toLocaleString("en-IN")}</strong>
+                        <strong style={{ color: "var(--teal-primary)" }}>₹{(bed.monthlyRent || property.pricePerBed || 8500).toLocaleString("en-IN")}</strong>
                       </td>
                       <td>
                         <span className="badge paid">PAID (UPI)</span>

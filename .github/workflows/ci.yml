@@ -160,12 +160,36 @@ jobs:
           flutter test
         working-directory: packages/firebase_services
 
+  # ─── Admin Web Build Tests ──────────────────────────────────────────────────
+  admin-web-test:
+    name: Admin Web App Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: apps/admin-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/admin-web
+
+      - name: Build Next.js
+        run: npm run build
+        working-directory: apps/admin-web
+
   # ─── Deploy to Staging ──────────────────────────────────────────────────────
   deploy-staging:
     name: Deploy to Staging
-    needs: [functions-test, business-app-test, tenant-app-test, packages-test]
+    needs: [functions-test, business-app-test, tenant-app-test, packages-test, admin-web-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/staging'
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -174,28 +198,24 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
-      - name: Deploy to Staging
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      - name: Deploy to Firebase Staging
         run: |
-          firebase deploy --project onestay360-1 --only functions,firestore:rules,storage,firestore:indexes,hosting --token "$FIREBASE_TOKEN"
-
-      - name: Skip Staging Deployment (No Token)
-        if: ${{ env.FIREBASE_TOKEN == '' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: echo "ℹ️ FIREBASE_TOKEN secret is not configured. Staging tests passed successfully."
+          if [ -n "$FIREBASE_TOKEN" ]; then
+            echo "🚀 Deploying to Firebase Staging..."
+            npm install -g firebase-tools
+            firebase deploy --project onestay360-1 --only functions,firestore:rules,storage,firestore:indexes,hosting --token "$FIREBASE_TOKEN"
+          else
+            echo "ℹ️ FIREBASE_TOKEN secret is not configured in repository secrets. Staging validation passed successfully."
+          fi
 
   # ─── Deploy to Production ───────────────────────────────────────────────────
   deploy-production:
     name: Deploy to Production
-    needs: [functions-test, business-app-test, tenant-app-test, packages-test]
+    needs: [functions-test, business-app-test, tenant-app-test, packages-test, admin-web-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -204,21 +224,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
-      - name: Deploy to Production
-        if: ${{ env.FIREBASE_TOKEN != '' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      - name: Deploy to Firebase Production
         run: |
-          firebase deploy --project onestay360-1 --only functions,firestore:rules,storage,firestore:indexes,hosting --token "$FIREBASE_TOKEN"
-
-      - name: Skip Production Deployment (No Token)
-        if: ${{ env.FIREBASE_TOKEN == '' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: echo "ℹ️ FIREBASE_TOKEN secret is not configured in repository secrets. All test suites passed successfully! To enable continuous automated deployment, add FIREBASE_TOKEN under Repo Settings -> Secrets."
+          if [ -n "$FIREBASE_TOKEN" ]; then
+            echo "🚀 Deploying to Firebase Production (onestay360-1)..."
+            npm install -g firebase-tools
+            firebase deploy --project onestay360-1 --only functions,firestore:rules,storage,firestore:indexes,hosting --token "$FIREBASE_TOKEN"
+          else
+            echo "ℹ️ FIREBASE_TOKEN secret is not configured in repository secrets. All test suites passed successfully! To enable continuous automated deployment, add FIREBASE_TOKEN under Repo Settings -> Secrets."
+          fi
 
       - name: Notify deployment
         if: success()

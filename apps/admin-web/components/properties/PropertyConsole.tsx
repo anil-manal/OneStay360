@@ -292,7 +292,10 @@ export default function PropertyConsole() {
             description: data.description || "Furnished co-living accommodation with amenities",
             totalBeds,
             occupiedBeds,
-            pricePerBed: Number(data.pricePerBed || data.monthlyRent || 7000),
+            pricePerBed: Number(
+              data.pricing?.double || data.pricing?.single || (data.pricePerBed && data.pricePerBed > 100 ? data.pricePerBed : 0) ||
+              data.monthlyRent || 7000
+            ),
             featured: Boolean(data.featured),
             status: data.status || "active",
             billingStatus: data.billingStatus || "paid",
@@ -704,7 +707,7 @@ export default function PropertyConsole() {
                     </div>
                   </td>
                   <td>
-                    <strong>₹{prop.pricePerBed.toLocaleString("en-IN")}</strong>
+                    <strong>₹{(prop.pricePerBed || 8500).toLocaleString("en-IN")}</strong>
                     <span className="subtext" style={{ display: "block" }}>/bed/month</span>
                   </td>
                   <td>
@@ -1081,7 +1084,7 @@ export default function PropertyConsole() {
                           </div>
                           <div style={{ textAlign: "right" }}>
                             <span style={{ fontSize: "13px", color: "#94A3B8" }}>Computed Electricity Surcharge:</span>
-                            <h3 style={{ margin: "2px 0 0", color: "#FFFFFF", fontSize: "20px" }}>₹{bill.toLocaleString("en-IN")}</h3>
+                            <h3 style={{ margin: "2px 0 0", color: "#FFFFFF", fontSize: "20px" }}>₹{(bill || 0).toLocaleString("en-IN")}</h3>
                           </div>
                         </div>
                       </div>

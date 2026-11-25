@@ -523,6 +523,10 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
           const data = docSnap.data();
           const totalBeds = Number(data.totalBeds || data.capacity || 24);
           const occupiedBeds = Number(data.occupiedBeds || Math.round(totalBeds * 0.75));
+          const pricePerBed = Number(
+            data.pricing?.double || data.pricing?.single || (data.pricePerBed && data.pricePerBed > 100 ? data.pricePerBed : 0) ||
+            data.monthlyRent || 7500
+          );
           propMap.set(docSnap.id, {
             id: docSnap.id,
             name: data.name || "Unnamed PG",
@@ -530,14 +534,14 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
             address: data.address || data.location || "Central Location",
             totalBeds,
             occupiedBeds,
-            pricePerBed: Number(data.pricePerBed || 7500),
+            pricePerBed,
             featured: Boolean(data.featured),
             status: data.status || "active",
             businessId,
             businessName: bizProfile.name,
-            singleRate: Number(data.singleRate || 14000),
-            doubleRate: Number(data.doubleRate || 9500),
-            tripleRate: Number(data.tripleRate || 7500),
+            singleRate: Number(data.pricing?.single || data.singleRate || 14000),
+            doubleRate: Number(data.pricing?.double || data.doubleRate || 9500),
+            tripleRate: Number(data.pricing?.triple || data.tripleRate || 7500),
             acSurcharge: Number(data.acSurcharge || 1500),
             vegFoodRate: Number(data.vegFoodRate || 2500),
             nonVegFoodRate: Number(data.nonVegFoodRate || 3500),
@@ -560,6 +564,10 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
           if (data.businessId === businessId && !propMap.has(docSnap.id)) {
             const totalBeds = Number(data.totalBeds || data.capacity || 24);
             const occupiedBeds = Number(data.occupiedBeds || Math.round(totalBeds * 0.75));
+            const pricePerBed = Number(
+              data.pricing?.double || data.pricing?.single || (data.pricePerBed && data.pricePerBed > 100 ? data.pricePerBed : 0) ||
+              data.monthlyRent || 7500
+            );
             propMap.set(docSnap.id, {
               id: docSnap.id,
               name: data.name || "Unnamed PG",
@@ -567,14 +575,14 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
               address: data.address || data.location || "Central Location",
               totalBeds,
               occupiedBeds,
-              pricePerBed: Number(data.pricePerBed || 7500),
+              pricePerBed,
               featured: Boolean(data.featured),
               status: data.status || "active",
               businessId,
               businessName: bizProfile.name,
-              singleRate: Number(data.singleRate || 14000),
-              doubleRate: Number(data.doubleRate || 9500),
-              tripleRate: Number(data.tripleRate || 7500),
+              singleRate: Number(data.pricing?.single || data.singleRate || 14000),
+              doubleRate: Number(data.pricing?.double || data.doubleRate || 9500),
+              tripleRate: Number(data.pricing?.triple || data.tripleRate || 7500),
               acSurcharge: Number(data.acSurcharge || 1500),
               vegFoodRate: Number(data.vegFoodRate || 2500),
               nonVegFoodRate: Number(data.nonVegFoodRate || 3500),
@@ -589,6 +597,50 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
         });
       } catch (e) {
         console.debug("Root properties query notice:", e);
+      }
+
+      // Properties by city subcollections
+      const cities = ["Pune", "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad"];
+      for (const city of cities) {
+        try {
+          const citySnap = await getDocs(collection(db, `properties_by_city/${city}/properties`));
+          citySnap.docs.forEach((docSnap) => {
+            const data = docSnap.data();
+            if ((data.businessId === businessId || data.businessName === bizProfile.name) && !propMap.has(docSnap.id)) {
+              const totalBeds = Number(data.totalBeds || data.totals?.beds || data.capacity || 24);
+              const occupiedBeds = Number(data.occupiedBeds || Math.round(totalBeds * 0.75));
+              const pricePerBed = Number(
+                data.pricing?.double || data.pricing?.single || (data.pricePerBed && data.pricePerBed > 100 ? data.pricePerBed : 0) ||
+                data.monthlyRent || 7500
+              );
+              propMap.set(docSnap.id, {
+                id: docSnap.id,
+                name: data.name || data.propertyName || "Unnamed PG",
+                city: city || data.city || bizProfile.city,
+                address: data.address || data.location || "Central Location",
+                totalBeds,
+                occupiedBeds,
+                pricePerBed,
+                featured: Boolean(data.featured),
+                status: data.status || "active",
+                businessId,
+                businessName: bizProfile.name,
+                singleRate: Number(data.pricing?.single || data.singleRate || 14000),
+                doubleRate: Number(data.pricing?.double || data.doubleRate || 9500),
+                tripleRate: Number(data.pricing?.triple || data.tripleRate || 7500),
+                acSurcharge: Number(data.acSurcharge || 1500),
+                vegFoodRate: Number(data.vegFoodRate || 2500),
+                nonVegFoodRate: Number(data.nonVegFoodRate || 3500),
+                fireNocVerified: Boolean(data.fireNocVerified !== false),
+                fssaiVerified: Boolean(data.fssaiVerified !== false),
+                cctvAudited: Boolean(data.cctvAudited !== false),
+                policeIntimated: Boolean(data.policeIntimated !== false),
+                images: data.images || (data.imageUrl ? [data.imageUrl] : ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"]),
+                rooms: data.rooms || DEFAULT_ROOMS,
+              });
+            }
+          });
+        } catch (_) {}
       }
 
       if (propMap.size > 0) {
@@ -1226,7 +1278,7 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
                           ID: {prop.id}
                         </span>
                         <span style={{ padding: "4px 10px", borderRadius: "6px", background: "var(--teal-primary)", color: "#FFFFFF", fontSize: "12px", fontWeight: 800 }}>
-                          ₹{prop.pricePerBed.toLocaleString("en-IN")}/mo
+                          ₹{(prop.pricePerBed || 8500).toLocaleString("en-IN")}/mo
                         </span>
                       </div>
                     </div>
@@ -1598,14 +1650,14 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "#64748B" }}>Gross Monthly Rent (GMV):</span>
-                    <strong style={{ color: "#0F172A" }}>₹{business.monthlyGmv.toLocaleString("en-IN")}</strong>
+                    <strong style={{ color: "#0F172A" }}>₹{(business.monthlyGmv || 0).toLocaleString("en-IN")}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #E2E8F0", paddingTop: "10px" }}>
                     <span style={{ color: "#64748B" }}>Platform Monthly Invoice:</span>
                     <strong style={{ color: "var(--teal-primary)", fontSize: "16px" }}>
                       {commercialForm.model === "flat_bed"
                         ? `₹${(totalPortfolioBeds * commercialForm.flatRate).toLocaleString("en-IN")}`
-                        : `₹${Math.round((business.monthlyGmv * commercialForm.percent) / 100).toLocaleString("en-IN")}`}
+                        : `₹${Math.round(((business.monthlyGmv || 0) * commercialForm.percent) / 100).toLocaleString("en-IN")}`}
                     </strong>
                   </div>
                   <div style={{ fontSize: "12px", color: "#64748B", marginTop: "8px", lineHeight: "1.4" }}>
