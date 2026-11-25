@@ -387,28 +387,9 @@ export default function PropertyConsole() {
 
   const handleToggleBedStatus = (roomId: string, bedId: string) => {
     if (!selectedProp) return;
-    const updatedRooms = selectedProp.rooms.map((room) => {
-      if (room.id === roomId) {
-        const updatedBeds = room.beds.map((bed) => {
-          if (bed.id === bedId) {
-            const nextStatus =
-              bed.status === "occupied" ? "vacant" : bed.status === "vacant" ? "maintenance" : "occupied";
-            return {
-              ...bed,
-              status: nextStatus as any,
-              tenantName: nextStatus === "occupied" ? "Walk-in Resident" : null,
-            };
-          }
-          return bed;
-        });
-        return { ...room, beds: updatedBeds };
-      }
-      return room;
-    });
-
-    const updatedProp = { ...selectedProp, rooms: updatedRooms };
-    setSelectedProp(updatedProp);
-    setProperties((prev) => prev.map((p) => (p.id === updatedProp.id ? updatedProp : p)));
+    // Bed status changes are legally protected and require formal audit verification.
+    // Direct admin to dedicated property console for resident checkout or check-in.
+    window.location.href = `/admin/property/${selectedProp.id}`;
   };
 
   const handleSaveSubmeterReading = async () => {
@@ -979,7 +960,7 @@ export default function PropertyConsole() {
                                 cursor: "pointer",
                                 transition: "all 0.2s ease",
                               }}
-                              title="Click to toggle Occupancy / Vacancy status"
+                              title="Click to open Property Console for audited resident dossier and bed actions"
                             >
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <strong style={{ color: "#FFFFFF", fontSize: "13px" }}>Bed {bed.bedNumber}</strong>
