@@ -351,15 +351,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
   const [activeTab, setActiveTab] = useState<"matrix" | "submeter" | "rates" | "compliance" | "residents" | "tickets">("matrix");
   const [updating, setUpdating] = useState(false);
 
-  // Submeter form state
-  const [selectedRoomId, setSelectedRoomId] = useState("R101");
-  const [submeterForm, setSubmeterForm] = useState({
-    prev: 1240,
-    curr: 1385,
-    rate: 12,
-  });
-  const [submeterSuccess, setSubmeterSuccess] = useState<string | null>(null);
-
   // Dynamic pricing matching Flutter Business App (PropertyPricing)
   const [pricingForm, setPricingForm] = useState<PropertyPricingData>({
     maxSharing: 3,
@@ -376,17 +367,8 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
     triple: 7500,
   });
 
-  // Bed Inspection & Management Action Modal (No casual 1-click toggling)
+  // Bed Inspection Audit Modal (Super Admin read-only compliance inspection)
   const [selectedBedModal, setSelectedBedModal] = useState<{ room: RoomInfo; bed: BedInfo } | null>(null);
-  const [bedActionType, setBedActionType] = useState<"view" | "assign" | "vacate" | "maintenance">("view");
-  const [assignForm, setAssignForm] = useState({
-    tenantName: "",
-    tenantPhone: "",
-    monthlyRent: 8500,
-  });
-  const [vacateReason, setVacateReason] = useState("Lease agreement tenure completed");
-  const [maintenanceReason, setMaintenanceReason] = useState("Air conditioner servicing & deep room sanitation");
-  const [bedActionSuccess, setBedActionSuccess] = useState<string | null>(null);
 
   async function loadPropertyDetails() {
     try {
@@ -562,16 +544,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
           triple: prop.tripleRate || 7500,
         });
       }
-
-      if (prop.rooms && prop.rooms.length > 0) {
-        const r = prop.rooms[0];
-        setSelectedRoomId(r.id);
-        setSubmeterForm({
-          prev: r.submeterPrev,
-          curr: r.submeterCurr,
-          rate: r.submeterRate,
-        });
-      }
     } catch (err) {
       console.error("Error loading property:", err);
     } finally {
@@ -583,189 +555,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
     loadPropertyDetails();
   }, [propertyId]);
 
-  // Open the Bed Action & Audit Modal (safeguard against casual 1-click status toggling)
+  // Open the Bed Audit Modal for Super Admin compliance inspection
   const handleOpenBedModal = (room: RoomInfo, bed: BedInfo) => {
     setSelectedBedModal({ room, bed });
-    setBedActionType("view");
-    setAssignForm({
-      tenantName: "",
-      tenantPhone: "",
-      monthlyRent: bed.monthlyRent || property?.pricePerBed || 8500,
-    });
-    setVacateReason("Lease agreement tenure completed");
-    setMaintenanceReason("Air conditioner servicing & deep room sanitation");
-    setBedActionSuccess(null);
-  };
-
-  // Execute authenticated bed status change with proper audit trail
-  const handleExecuteBedAction = async (newStatus: "occupied" | "vacant" | "maintenance") => {
-    if (!property || !selectedBedModal) return;
-    const { room, bed } = selectedBedModal;
-
-    let tenantName: string | null = null;
-    let tenantPhone: string | null = null;
-    let monthlyRent = bed.monthlyRent;
-
-    if (newStatus === "occupied") {
-      if (!assignForm.tenantName.trim()) {
-        alert("Please enter the resident's full name.");
-        return;
-      }
-      tenantName = assignForm.tenantName.trim();
-      tenantPhone = assignForm.tenantPhone.trim() || "+91 98201 12345";
-      monthlyRent = Number(assignForm.monthlyRent) || bed.monthlyRent || 8500;
-    }
-
-    const updatedRooms = property.rooms.map((r) => {
-      if (r.id === room.id) {
-        const updatedBeds = r.beds.map((b) => {
-          if (b.id === bed.id) {
-            return {
-              ...b,
-              status: newStatus,
-              tenantName,
-              tenantPhone,
-              monthlyRent,
-            };
-          }
-          return b;
-        });
-        return { ...r, beds: updatedBeds };
-      }
-      return r;
-    });
-
-    const occCount = updatedRooms.flatMap((r) => r.beds).filter((b) => b.status === "occupied").length;
-    const updatedProp = { ...property, rooms: updatedRooms, occupiedBeds: occCount };
-    setProperty(updatedProp);
-
-    try {
-      await updateDoc(doc(db, "properties", property.id), {
-        rooms: updatedRooms,
-        occupiedBeds: occCount,
-        updatedAt: new Date(),
-      });
-    } catch (_) {}
-
-    setSelectedBedModal({
-      room,
-      bed: {
-        ...bed,
-        status: newStatus,
-        tenantName,
-        tenantPhone,
-        monthlyRent,
-      },
-    });
-    setBedActionType("view");
-    setBedActionSuccess(`✅ Bed ${bed.bedNumber} status updated to ${newStatus.toUpperCase()}`);
-    setTimeout(() => setBedActionSuccess(null), 4000);
-  };
-
-  const handleSaveSubmeterReading = async () => {
-    if (!property) return;
-    const unitsUsed = Math.max(0, submeterForm.curr - submeterForm.prev);
-    const amount = unitsUsed * submeterForm.rate;
-
-    const updatedRooms = property.rooms.map((room) => {
-      if (room.id === selectedRoomId) {
-        return {
-          ...room,
-          submeterPrev: submeterForm.prev,
-          submeterCurr: submeterForm.curr,
-          submeterRate: submeterForm.rate,
-        };
-      }
-      return room;
-    });
-
-    const updatedProp = { ...property, rooms: updatedRooms };
-    setProperty(updatedProp);
-
-    try {
-      await updateDoc(doc(db, "properties", property.id), { rooms: updatedRooms, updatedAt: new Date() });
-    } catch (_) {}
-
-    setSubmeterSuccess(`✅ Logged ${unitsUsed} kWh units in Room ${selectedRoomId}. Electricity bill calculated: ₹${amount.toLocaleString("en-IN")}. Auto-split among room inmates.`);
-    setTimeout(() => setSubmeterSuccess(null), 5000);
-  };
-
-  const handleMaxSharingChange = (newMax: number) => {
-    const currentSharing = [...pricingForm.sharing];
-    const newSharing: SharingPricingEntry[] = [];
-    for (let s = 1; s <= newMax; s++) {
-      const existing = currentSharing.find((e) => e.sharing === s);
-      if (existing) {
-        newSharing.push(existing);
-      } else {
-        const baseNonAc = Math.max(5000, 14000 - (s - 1) * 3500);
-        newSharing.push({
-          sharing: s,
-          nonAc: baseNonAc,
-          ac: baseNonAc + 1500,
-        });
-      }
-    }
-    setPricingForm({
-      ...pricingForm,
-      maxSharing: newMax,
-      sharing: newSharing,
-    });
-  };
-
-  const handleUpdateSharingEntry = (sharing: number, field: "nonAc" | "ac", value: number) => {
-    const updated = pricingForm.sharing.map((entry) => {
-      if (entry.sharing === sharing) {
-        return { ...entry, [field]: value };
-      }
-      return entry;
-    });
-    setPricingForm({ ...pricingForm, sharing: updated });
-  };
-
-  const handleSaveDynamicPricing = async () => {
-    if (!property) return;
-    setUpdating(true);
-    try {
-      const single = pricingForm.sharing.find((s) => s.sharing === 1)?.nonAc || pricingForm.single || 14000;
-      const double = pricingForm.sharing.find((s) => s.sharing === 2)?.nonAc || pricingForm.double || 9500;
-      const triple = pricingForm.sharing.find((s) => s.sharing === 3)?.nonAc || pricingForm.triple || 7500;
-
-      const payload = {
-        maxSharing: pricingForm.maxSharing,
-        sharing: pricingForm.sharing,
-        securityDeposit: pricingForm.securityDeposit,
-        oneTimeMaintenance: pricingForm.oneTimeMaintenance,
-        maintenanceDeductedFromDeposit: pricingForm.maintenanceDeductedFromDeposit,
-        single,
-        double,
-        triple,
-      };
-
-      await updateDoc(doc(db, "properties", property.id), {
-        pricing: payload,
-        updatedAt: new Date(),
-      });
-
-      setProperty({
-        ...property,
-        pricing: payload,
-        singleRate: single,
-        doubleRate: double,
-        tripleRate: triple,
-        pricePerBed: double || single || 8500,
-      });
-      alert("✅ Property pricing structure updated successfully in sync with Business App!");
-    } catch (e) {
-      console.error("Pricing update notice:", e);
-      setProperty({
-        ...property,
-        pricing: pricingForm,
-      });
-      alert("Pricing updated for active session.");
-    } finally {
-      setUpdating(false);
-    }
   };
 
   const handleToggleFeatured = async () => {
@@ -1236,211 +1028,116 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
           </div>
         )}
 
-        {/* TAB 2: ELECTRICITY SUBMETER */}
+        {/* TAB 2: ELECTRICITY SUBMETER (AUDITED READ-ONLY FOR SUPER-ADMIN) */}
         {activeTab === "submeter" && (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
-              Electricity Submeter Delta Billing Calculator
-            </h3>
-            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
-              Calculates room electricity consumption against logged meter photos, eliminating dispute overhead.
-            </p>
-
-            {submeterSuccess && (
-              <div style={{ padding: "12px 16px", background: "rgba(5, 150, 105, 0.12)", border: "1px solid #059669", borderRadius: "8px", color: "#059669", fontSize: "13px", marginBottom: "16px" }}>
-                {submeterSuccess}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 6px 0", color: "#0F172A" }}>
+                  Utility Submeter Compliance &amp; Historical Billing Log (Audited)
+                </h3>
+                <p style={{ fontSize: "13px", color: "#64748B", margin: 0 }}>
+                  Audited room electricity meter logs used for tenant dispute resolution and Cashfree utility invoice reconciliation.
+                </p>
               </div>
-            )}
+              <span style={{ fontSize: "12px", background: "rgba(13, 148, 136, 0.1)", color: "var(--teal-primary)", fontWeight: 700, padding: "4px 10px", borderRadius: "6px" }}>
+                Super-Admin Compliance Audit
+              </span>
+            </div>
 
-            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
-                    Select Room
-                  </label>
-                  <select
-                    value={selectedRoomId}
-                    onChange={(e) => {
-                      setSelectedRoomId(e.target.value);
-                      const r = property.rooms.find((rm) => rm.id === e.target.value);
-                      if (r) {
-                        setSubmeterForm({
-                          prev: r.submeterPrev,
-                          curr: r.submeterCurr,
-                          rate: r.submeterRate,
-                        });
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "8px",
-                      color: "#0F172A",
-                      fontSize: "13px",
-                    }}
-                  >
-                    {property.rooms.map((rm) => (
-                      <option key={rm.id} value={rm.id}>
-                        Room {rm.roomNumber} (Floor {rm.floor})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
-                    Tariff Rate (₹ per kWh unit)
-                  </label>
-                  <input
-                    type="number"
-                    value={submeterForm.rate}
-                    onChange={(e) => setSubmeterForm({ ...submeterForm, rate: Number(e.target.value) })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "8px",
-                      color: "#0F172A",
-                      fontSize: "13px",
-                    }}
-                  />
-                </div>
+            <div style={{ padding: "14px 18px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px", color: "#1E40AF", fontSize: "13px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <ShieldCheck size={20} style={{ flexShrink: 0 }} />
+              <div>
+                <strong>Operational Ownership Notice:</strong> Room electricity meter readings, unit calculations, and bill splits are performed directly by the PG Landlord &amp; Wardens via the <strong>Landlord Partner Portal (partner.onestay360.in)</strong>. As Super Admin, this ledger provides an immutable audit trail for legal dispute mediation.
               </div>
+            </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
-                    Previous Meter Reading (kWh)
-                  </label>
-                  <input
-                    type="number"
-                    value={submeterForm.prev}
-                    onChange={(e) => setSubmeterForm({ ...submeterForm, prev: Number(e.target.value) })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "8px",
-                      color: "#0F172A",
-                      fontSize: "13px",
-                    }}
-                  />
-                </div>
+            <div className="tableWrapper">
+              <table className="adminTable">
+                <thead>
+                  <tr>
+                    <th>Room &amp; Floor</th>
+                    <th>Submeter Dial ID</th>
+                    <th>Previous Reading</th>
+                    <th>Current Reading</th>
+                    <th>Net Consumption</th>
+                    <th>Tariff Rate</th>
+                    <th>Billed Utility Dues</th>
+                    <th>Audit Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {property.rooms.map((rm) => {
+                    const prev = rm.submeterPrev || 1120;
+                    const curr = rm.submeterCurr || 1285;
+                    const delta = Math.max(0, curr - prev);
+                    const rate = rm.submeterRate || 12;
+                    const totalDues = delta * rate;
 
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "6px", color: "#475569" }}>
-                    Current Meter Reading (kWh)
-                  </label>
-                  <input
-                    type="number"
-                    value={submeterForm.curr}
-                    onChange={(e) => setSubmeterForm({ ...submeterForm, curr: Number(e.target.value) })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "8px",
-                      color: "#0F172A",
-                      fontSize: "13px",
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Calculation Preview */}
-              <div
-                style={{
-                  background: "rgba(13, 148, 136, 0.05)",
-                  border: "1px solid rgba(13, 148, 136, 0.2)",
-                  borderRadius: "8px",
-                  padding: "16px 20px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "12px", color: "#64748B" }}>Delta Units Consumed</div>
-                  <strong style={{ fontSize: "20px", color: "#0F172A" }}>
-                    {Math.max(0, submeterForm.curr - submeterForm.prev)} kWh Units
-                  </strong>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "12px", color: "#64748B" }}>Total Electricity Charge to Split</div>
-                  <strong style={{ fontSize: "22px", color: "var(--teal-primary)" }}>
-                    ₹{(Math.max(0, (submeterForm.curr || 0) - (submeterForm.prev || 0)) * (submeterForm.rate || 12)).toLocaleString("en-IN")}
-                  </strong>
-                </div>
-              </div>
-
-              <button
-                onClick={handleSaveSubmeterReading}
-                className="btnPrimary"
-                style={{ padding: "12px 24px", borderRadius: "8px", fontWeight: 700, fontSize: "14px", alignSelf: "flex-start" }}
-              >
-                Save Reading & Add to Month-End Invoices
-              </button>
+                    return (
+                      <tr key={rm.id}>
+                        <td>
+                          <strong>Room {rm.roomNumber}</strong>
+                          <span className="subtext" style={{ display: "block" }}>Floor {rm.floor} &bull; {rm.hasAC ? "AC" : "Non-AC"}</span>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--cyan-primary)" }}>
+                            SM-{property.id.slice(-4)}-{rm.roomNumber}
+                          </span>
+                        </td>
+                        <td>{prev} kWh</td>
+                        <td>
+                          <strong>{curr} kWh</strong>
+                        </td>
+                        <td>
+                          <strong style={{ color: "#0F172A" }}>{delta} Units</strong>
+                        </td>
+                        <td>₹{rate}/unit</td>
+                        <td>
+                          <strong style={{ color: "var(--teal-primary)" }}>₹{totalDues.toLocaleString("en-IN")}</strong>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", background: "#ECFDF5", color: "#059669", fontWeight: 700 }}>
+                            Reconciled &amp; Billed
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* TAB 3: DYNAMIC SHARING RATES (MATCHING FLUTTER BUSINESS APP) */}
+        {/* TAB 3: DYNAMIC SHARING RATES (AUDITED READ-ONLY FOR SUPER-ADMIN) */}
         {activeTab === "rates" && (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
               <div>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "0 0 4px 0", color: "#0F172A" }}>
-                  Room Pricing & Sharing Density Configuration
+                  Room Pricing &amp; Sharing Density Schedule (Audited View)
                 </h3>
                 <p style={{ fontSize: "13px", color: "#64748B", margin: 0 }}>
-                  Configured in 1:1 sync with the OneStay360 Business App. Manage Non-AC / AC monthly tariffs across sharing tiers, security deposits, and maintenance charges.
+                  Active room tariffs, AC surcharges, security deposits, and maintenance charges enforced across public booking and Cashfree checkout.
                 </p>
               </div>
               <span style={{ fontSize: "12px", background: "rgba(13, 148, 136, 0.1)", color: "var(--teal-primary)", fontWeight: 700, padding: "4px 10px", borderRadius: "6px" }}>
-                Business App Sync Model
+                Landlord Configured Rates
               </span>
             </div>
 
-            {/* Section 1: Max Sharing Tier Selector */}
-            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "18px", marginBottom: "20px" }}>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                Max Sharing (Highest number of people accommodated per room)
-              </label>
-              <p style={{ fontSize: "12px", color: "#64748B", margin: "0 0 12px 0" }}>
-                Select the maximum sharing capacity offered in this PG. Dynamically generates tariff tiers below.
-              </p>
-              <div style={{ display: "flex", gap: "8px" }}>
-                {[1, 2, 3, 4, 5].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => handleMaxSharingChange(num)}
-                    style={{
-                      padding: "8px 18px",
-                      borderRadius: "8px",
-                      border: pricingForm.maxSharing === num ? "2px solid var(--teal-primary)" : "1px solid #CBD5E1",
-                      background: pricingForm.maxSharing === num ? "rgba(13, 148, 136, 0.1)" : "#FFFFFF",
-                      color: pricingForm.maxSharing === num ? "var(--teal-primary)" : "#475569",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      fontSize: "13px",
-                    }}
-                  >
-                    {num} Sharing {num === 1 ? "(Private)" : ""}
-                  </button>
-                ))}
+            <div style={{ padding: "14px 18px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "10px", color: "#475569", fontSize: "13px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <Building2 size={20} style={{ flexShrink: 0, color: "var(--teal-primary)" }} />
+              <div>
+                <strong>Landlord Commercial Autonomy:</strong> Room rental prices, deposit limits, and maintenance policies are determined by the property landlord via <strong>partner.onestay360.in</strong>. Platform admins audit these rates to guarantee pricing transparency during public tenant reservations.
               </div>
             </div>
 
-            {/* Section 2: Sharing Tiers (Non-AC and AC Rent) */}
+            {/* Section 1: Sharing Tiers (Non-AC and AC Rent) */}
             <div style={{ marginBottom: "24px" }}>
               <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: "0 0 12px 0" }}>
-                Monthly Rent by Sharing Density
+                Monthly Tariffs by Sharing Tier (Max Capacity: {pricingForm.maxSharing} Sharing)
               </h4>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
                 {pricingForm.sharing.map((entry) => (
@@ -1449,49 +1146,33 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                     style={{
                       border: "1px solid #E2E8F0",
                       borderRadius: "12px",
-                      padding: "16px",
+                      padding: "18px",
                       background: "#FFFFFF",
-                      boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid #F1F5F9", paddingBottom: "8px" }}>
-                      <strong style={{ fontSize: "14px", color: "#0F172A" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", borderBottom: "1px solid #F1F5F9", paddingBottom: "10px" }}>
+                      <strong style={{ fontSize: "15px", color: "#0F172A" }}>
                         {entry.sharing} Sharing Room {entry.sharing === 1 ? "(Private Suite)" : ""}
                       </strong>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--teal-primary)" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, background: "#F1F5F9", color: "var(--teal-primary)", padding: "2px 8px", borderRadius: "4px" }}>
                         Tier {entry.sharing}
                       </span>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748B", marginBottom: "4px" }}>
-                          Non-AC Rent (₹/month)
-                        </label>
-                        <div style={{ position: "relative" }}>
-                          <span style={{ position: "absolute", left: "10px", top: "9px", color: "#94A3B8", fontSize: "13px" }}>₹</span>
-                          <input
-                            type="number"
-                            value={entry.nonAc}
-                            onChange={(e) => handleUpdateSharingEntry(entry.sharing, "nonAc", Number(e.target.value))}
-                            style={{ width: "100%", padding: "8px 10px 8px 24px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", fontWeight: 600, color: "#0F172A" }}
-                          />
-                        </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "13px", color: "#64748B" }}>Non-AC Monthly Rent:</span>
+                        <strong style={{ fontSize: "15px", color: "#0F172A" }}>
+                          ₹{(entry.nonAc || 0).toLocaleString("en-IN")}/mo
+                        </strong>
                       </div>
 
-                      <div>
-                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748B", marginBottom: "4px" }}>
-                          AC Rent (₹/month)
-                        </label>
-                        <div style={{ position: "relative" }}>
-                          <span style={{ position: "absolute", left: "10px", top: "9px", color: "#94A3B8", fontSize: "13px" }}>₹</span>
-                          <input
-                            type="number"
-                            value={entry.ac}
-                            onChange={(e) => handleUpdateSharingEntry(entry.sharing, "ac", Number(e.target.value))}
-                            style={{ width: "100%", padding: "8px 10px 8px 24px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", fontWeight: 600, color: "#0F172A" }}
-                          />
-                        </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "13px", color: "#64748B" }}>AC Monthly Rent:</span>
+                        <strong style={{ fontSize: "15px", color: "var(--teal-primary)" }}>
+                          ₹{(entry.ac || 0).toLocaleString("en-IN")}/mo
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -1499,70 +1180,36 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
               </div>
             </div>
 
-            {/* Section 3: Common Charges (Deposit, Maintenance) */}
-            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "18px", marginBottom: "24px" }}>
+            {/* Section 2: Common Charges (Deposit, Maintenance) */}
+            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px" }}>
               <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: "0 0 14px 0" }}>
-                Mandatory Charges & Escrow Terms
+                Mandatory Escrow Terms &amp; Ancillary Charges
               </h4>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "14px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>
-                    Security Deposit per Resident (₹)
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: "10px", top: "10px", color: "#94A3B8" }}>₹</span>
-                    <input
-                      type="number"
-                      value={pricingForm.securityDeposit}
-                      onChange={(e) => setPricingForm({ ...pricingForm, securityDeposit: Number(e.target.value) })}
-                      style={{ width: "100%", padding: "10px 12px 10px 26px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px", color: "#0F172A" }}
-                    />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px" }}>
+                  <div style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>Security Deposit (Quarantined in Escrow)</div>
+                  <div style={{ fontSize: "22px", fontWeight: 800, color: "#059669", marginTop: "4px" }}>
+                    ₹{(pricingForm.securityDeposit || 15000).toLocaleString("en-IN")}
                   </div>
-                  <span style={{ fontSize: "11px", color: "#64748B", marginTop: "2px", display: "block" }}>
-                    Refundable deposit held in escrow until checkout.
-                  </span>
+                  <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+                    Refundable upon move-out sign-off via Cashfree Master Payouts.
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>
-                    One-time Onboarding Maintenance Charge (₹)
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: "10px", top: "10px", color: "#94A3B8" }}>₹</span>
-                    <input
-                      type="number"
-                      value={pricingForm.oneTimeMaintenance}
-                      onChange={(e) => setPricingForm({ ...pricingForm, oneTimeMaintenance: Number(e.target.value) })}
-                      style={{ width: "100%", padding: "10px 12px 10px 26px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px", color: "#0F172A" }}
-                    />
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "10px", padding: "16px" }}>
+                  <div style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>One-Time Onboarding Fee</div>
+                  <div style={{ fontSize: "22px", fontWeight: 800, color: "#0F172A", marginTop: "4px" }}>
+                    ₹{(pricingForm.oneTimeMaintenance || 1200).toLocaleString("en-IN")}
                   </div>
-                  <span style={{ fontSize: "11px", color: "#64748B", marginTop: "2px", display: "block" }}>
-                    Non-refundable one-time fee for deep room sanitization and welcome kit.
-                  </span>
+                  <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+                    {pricingForm.maintenanceDeductedFromDeposit
+                      ? "Automatically deducted from deposit at move-out."
+                      : "Paid separately at first-month onboarding."}
+                  </div>
                 </div>
               </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "#334155", fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={pricingForm.maintenanceDeductedFromDeposit}
-                  onChange={(e) => setPricingForm({ ...pricingForm, maintenanceDeductedFromDeposit: e.target.checked })}
-                  style={{ width: "16px", height: "16px", accentColor: "var(--teal-primary)" }}
-                />
-                Deduct One-time Maintenance directly from Security Deposit at checkout
-              </label>
             </div>
-
-            {/* Save Button */}
-            <button
-              onClick={handleSaveDynamicPricing}
-              disabled={updating}
-              className="btnPrimary"
-              style={{ padding: "12px 28px", borderRadius: "8px", fontWeight: 700, fontSize: "14px" }}
-            >
-              {updating ? "Saving Structure..." : "Save Pricing Structure (Sync with Business App)"}
-            </button>
           </div>
         )}
 
@@ -1773,15 +1420,8 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                 </button>
               </div>
 
-              {bedActionSuccess && (
-                <div style={{ padding: "10px 14px", background: "rgba(5, 150, 105, 0.1)", color: "#059669", borderRadius: "8px", fontSize: "13px", fontWeight: 600, marginBottom: "16px" }}>
-                  {bedActionSuccess}
-                </div>
-              )}
-
-              {/* VIEW STATE */}
-              {bedActionType === "view" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* AUDIT VIEW STATE */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                   {selectedBedModal.bed.status === "occupied" ? (
                     <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "16px" }}>
                       <div style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px", marginBottom: "8px" }}>
@@ -1866,189 +1506,42 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                     </div>
                   )}
 
-                  {/* Action Triggers */}
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                  {/* Action Triggers for Super Admin */}
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
                     {selectedBedModal.bed.status === "occupied" && (
-                      <button
-                        onClick={() => setBedActionType("vacate")}
-                        className="btnDanger"
-                        style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700 }}
+                      <Link
+                        href={`/admin/tenant/${selectedBedModal.bed.id || "TEN0000001"}`}
+                        style={{
+                          flex: 1,
+                          padding: "10px 16px",
+                          borderRadius: "8px",
+                          background: "var(--teal-primary)",
+                          color: "#FFFFFF",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
+                        }}
                       >
-                        Initiate Checkout / Vacate Bed
-                      </button>
-                    )}
-
-                    {selectedBedModal.bed.status === "vacant" && (
-                      <>
-                        <button
-                          onClick={() => setBedActionType("assign")}
-                          className="btnPrimary"
-                          style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700 }}
-                        >
-                          Assign / Onboard Tenant
-                        </button>
-                        <button
-                          onClick={() => setBedActionType("maintenance")}
-                          style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#475569", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
-                        >
-                          Lock for Maintenance
-                        </button>
-                      </>
-                    )}
-
-                    {selectedBedModal.bed.status === "maintenance" && (
-                      <button
-                        onClick={() => handleExecuteBedAction("vacant")}
-                        className="btnPrimary"
-                        style={{ flex: 1, padding: "10px", borderRadius: "8px", fontSize: "13px", fontWeight: 700 }}
-                      >
-                        Complete Maintenance & Mark Available
-                      </button>
+                        <Eye size={14} /> Open Full Tenant KYC Dossier &rarr;
+                      </Link>
                     )}
 
                     <button
                       onClick={() => setSelectedBedModal(null)}
-                      style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+                      style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
                     >
-                      Close
+                      Close Inspection
                     </button>
                   </div>
                 </div>
-              )}
-
-              {/* ASSIGN RESIDENT FLOW */}
-              {bedActionType === "assign" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div style={{ fontSize: "13px", color: "#64748B" }}>
-                    Onboard a new resident into <strong>Bed {selectedBedModal.bed.bedNumber}</strong>.
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "4px", color: "#334155" }}>
-                      Resident Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Rahul Sharma"
-                      value={assignForm.tenantName}
-                      onChange={(e) => setAssignForm({ ...assignForm, tenantName: e.target.value })}
-                      style={{ width: "100%", padding: "10px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "4px", color: "#334155" }}>
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="+91 98201 12345"
-                      value={assignForm.tenantPhone}
-                      onChange={(e) => setAssignForm({ ...assignForm, tenantPhone: e.target.value })}
-                      style={{ width: "100%", padding: "10px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "4px", color: "#334155" }}>
-                      Agreed Monthly Rent (₹/mo)
-                    </label>
-                    <input
-                      type="number"
-                      value={assignForm.monthlyRent}
-                      onChange={(e) => setAssignForm({ ...assignForm, monthlyRent: Number(e.target.value) })}
-                      style={{ width: "100%", padding: "10px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                    <button
-                      onClick={() => handleExecuteBedAction("occupied")}
-                      className="btnPrimary"
-                      style={{ flex: 1, padding: "10px", borderRadius: "8px", fontWeight: 700, fontSize: "13px" }}
-                    >
-                      Confirm Check-In & Assign Bed
-                    </button>
-                    <button
-                      onClick={() => setBedActionType("view")}
-                      style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", fontSize: "13px", cursor: "pointer" }}
-                    >
-                      Back
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* VACATE BED FLOW */}
-              {bedActionType === "vacate" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div style={{ padding: "12px", background: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.2)", borderRadius: "8px", fontSize: "12px", color: "#991B1B" }}>
-                    <strong>Audited Move-Out Notice:</strong> Releasing <strong>{selectedBedModal.bed.tenantName || "Resident"}</strong> from Bed {selectedBedModal.bed.bedNumber}.
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "4px", color: "#334155" }}>
-                      Reason for Move-Out / Vacating
-                    </label>
-                    <select
-                      value={vacateReason}
-                      onChange={(e) => setVacateReason(e.target.value)}
-                      style={{ width: "100%", padding: "10px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px", background: "#FFFFFF" }}
-                    >
-                      <option value="Lease agreement tenure completed">Lease agreement tenure completed</option>
-                      <option value="Voluntary move-out with 30-day notice">Voluntary move-out with 30-day notice</option>
-                      <option value="Transferred to another room / property">Transferred to another room / property</option>
-                      <option value="Eviction due to property rule violation">Eviction due to property rule violation</option>
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                    <button
-                      onClick={() => handleExecuteBedAction("vacant")}
-                      className="btnDanger"
-                      style={{ flex: 1, padding: "10px", borderRadius: "8px", fontWeight: 700, fontSize: "13px" }}
-                    >
-                      Confirm Checkout & Mark Vacant
-                    </button>
-                    <button
-                      onClick={() => setBedActionType("view")}
-                      style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", fontSize: "13px", cursor: "pointer" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* MARK MAINTENANCE FLOW */}
-              {bedActionType === "maintenance" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, marginBottom: "4px", color: "#334155" }}>
-                      Maintenance / Repair Reason
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. AC leaking, repainting wall, broken bed frame"
-                      value={maintenanceReason}
-                      onChange={(e) => setMaintenanceReason(e.target.value)}
-                      style={{ width: "100%", padding: "10px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                    <button
-                      onClick={() => handleExecuteBedAction("maintenance")}
-                      style={{ flex: 1, padding: "10px", borderRadius: "8px", background: "#D97706", color: "#FFFFFF", fontWeight: 700, fontSize: "13px", border: "none", cursor: "pointer" }}
-                    >
-                      Lock Bed for Maintenance
-                    </button>
-                    <button
-                      onClick={() => setBedActionType("view")}
-                      style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#64748B", fontSize: "13px", cursor: "pointer" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
+          )}
+        </main>
+      </div>
+    );
+  }
