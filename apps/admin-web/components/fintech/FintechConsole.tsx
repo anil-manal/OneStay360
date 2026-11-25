@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { doc, getDoc, setDoc, collection, collectionGroup, getDocs, serverTimestamp, query, limit, orderBy } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -69,6 +70,118 @@ interface WebhookLog {
   httpStatus: number;
 }
 
+interface EscrowHolding {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  tenantPhone: string;
+  propertyName: string;
+  roomBed: string;
+  depositAmount: number;
+  status: "locked_in_escrow" | "moveout_pending" | "refund_approved" | "disbursed";
+  unpaidRent: number;
+  electricityDeduction: number;
+  damageDeduction: number;
+  netRefundable: number;
+  bankAccount: string;
+  bankIfsc: string;
+  upiId: string;
+  disputeFlag: boolean;
+}
+
+const DEFAULT_ESCROW_HOLDINGS: EscrowHolding[] = [
+  {
+    id: "ESC_9001",
+    tenantId: "TEN0000001",
+    tenantName: "Anil Manal",
+    tenantPhone: "+91 93593 03097",
+    propertyName: "Ram Nivas Accommodations",
+    roomBed: "Room 101 • Bed B1",
+    depositAmount: 15000,
+    status: "locked_in_escrow",
+    unpaidRent: 0,
+    electricityDeduction: 0,
+    damageDeduction: 0,
+    netRefundable: 15000,
+    bankAccount: "HDFC •••• 8821",
+    bankIfsc: "HDFC0001234",
+    upiId: "anil.manal@okhdfcbank",
+    disputeFlag: false,
+  },
+  {
+    id: "ESC_9002",
+    tenantId: "TEN0000002",
+    tenantName: "Rohan Verma",
+    tenantPhone: "+91 98201 55443",
+    propertyName: "Zolo CyberPark Premier",
+    roomBed: "Room 204 • Bed B2",
+    depositAmount: 18000,
+    status: "moveout_pending",
+    unpaidRent: 0,
+    electricityDeduction: 540,
+    damageDeduction: 1200,
+    netRefundable: 16260,
+    bankAccount: "ICICI •••• 4410",
+    bankIfsc: "ICIC0000412",
+    upiId: "rohan.verma@icici",
+    disputeFlag: false,
+  },
+  {
+    id: "ESC_9003",
+    tenantId: "TEN0000003",
+    tenantName: "Pooja Hegde",
+    tenantPhone: "+91 98765 43210",
+    propertyName: "Isthara Whitefield Hive",
+    roomBed: "Room 302 • Bed B1",
+    depositAmount: 12000,
+    status: "refund_approved",
+    unpaidRent: 0,
+    electricityDeduction: 320,
+    damageDeduction: 0,
+    netRefundable: 11680,
+    bankAccount: "SBI •••• 9012",
+    bankIfsc: "SBIN0000456",
+    upiId: "pooja.hegde@oksbi",
+    disputeFlag: false,
+  },
+  {
+    id: "ESC_9004",
+    tenantId: "TEN0000004",
+    tenantName: "Vikram Rathore",
+    tenantPhone: "+91 98111 22334",
+    propertyName: "Stanza Living Elite",
+    roomBed: "Room 105 • Bed B1",
+    depositAmount: 16000,
+    status: "locked_in_escrow",
+    unpaidRent: 0,
+    electricityDeduction: 0,
+    damageDeduction: 0,
+    netRefundable: 16000,
+    bankAccount: "AXIS •••• 3311",
+    bankIfsc: "UTIB0000112",
+    upiId: "vikram.rathore@axis",
+    disputeFlag: true,
+  },
+  {
+    id: "ESC_9005",
+    tenantId: "TEN0000005",
+    tenantName: "Sneha Rao",
+    tenantPhone: "+91 97412 88990",
+    propertyName: "HelloWorld Koramangala",
+    roomBed: "Room 401 • Bed B2",
+    depositAmount: 14000,
+    status: "disbursed",
+    unpaidRent: 0,
+    electricityDeduction: 450,
+    damageDeduction: 0,
+    netRefundable: 13550,
+    bankAccount: "KOTAK •••• 7765",
+    bankIfsc: "KKBK0000789",
+    upiId: "sneha.rao@kotak",
+    disputeFlag: false,
+  },
+];
+
 export default function FintechConsole() {
   const [config, setConfig] = useState<CashfreePlatformConfig>({
     appId: "",
@@ -85,10 +198,14 @@ export default function FintechConsole() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<"gateway" | "ledger" | "payouts" | "webhooks">("gateway");
+  const [activeTab, setActiveTab] = useState<"gateway" | "ledger" | "escrow" | "payouts" | "webhooks">("gateway");
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [payoutQueue, setPayoutQueue] = useState<LandlordPayoutQueue[]>([]);
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
+  const [escrowHoldings, setEscrowHoldings] = useState<EscrowHolding[]>(DEFAULT_ESCROW_HOLDINGS);
+  const [selectedRefundModal, setSelectedRefundModal] = useState<EscrowHolding | null>(null);
+  const [disbursingRefund, setDisbursingRefund] = useState(false);
+  const [refundDisbursedSuccess, setRefundDisbursedSuccess] = useState<string | null>(null);
   const [testingPing, setTestingPing] = useState(false);
   const [pingResult, setPingResult] = useState<string | null>(null);
 
@@ -539,6 +656,25 @@ export default function FintechConsole() {
         </button>
 
         <button
+          onClick={() => setActiveTab("escrow")}
+          style={{
+            padding: "8px 18px",
+            backgroundColor: activeTab === "escrow" ? "var(--teal-primary)" : "transparent",
+            color: activeTab === "escrow" ? "#FFFFFF" : "var(--text-secondary)",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: 600,
+            fontSize: "13px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <ShieldCheck size={16} /> Security Deposit Escrow ({escrowHoldings.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab("payouts")}
           style={{
             padding: "8px 18px",
@@ -857,6 +993,331 @@ export default function FintechConsole() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Tab: Security Deposit Escrow Vault */}
+      {activeTab === "escrow" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* Escrow KPI Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+            <div style={{ background: "#FFFFFF", padding: "18px 20px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 700 }}>Total Escrow Pool</span>
+                <ShieldCheck size={18} style={{ color: "var(--teal-primary)" }} />
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "8px", color: "var(--text-primary)" }}>
+                ₹{escrowHoldings.reduce((sum, e) => sum + e.depositAmount, 0).toLocaleString("en-IN")}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                Held across {escrowHoldings.length} resident tenancies
+              </div>
+            </div>
+
+            <div style={{ background: "#FFFFFF", padding: "18px 20px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 700 }}>Move-Out In Review</span>
+                <Clock size={18} style={{ color: "#D97706" }} />
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "8px", color: "#D97706" }}>
+                {escrowHoldings.filter((e) => e.status === "moveout_pending").length}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                Pending audit inspection clearance
+              </div>
+            </div>
+
+            <div style={{ background: "#FFFFFF", padding: "18px 20px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 700 }}>Refunds Approved</span>
+                <CheckCircle2 size={18} style={{ color: "#059669" }} />
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "8px", color: "#059669" }}>
+                {escrowHoldings.filter((e) => e.status === "refund_approved" || e.status === "disbursed").length}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                Cleared for Cashfree automated transfer
+              </div>
+            </div>
+
+            <div style={{ background: "#FFFFFF", padding: "18px 20px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)", textTransform: "uppercase", fontWeight: 700 }}>Dispute Holds</span>
+                <AlertTriangle size={18} style={{ color: "#DC2626" }} />
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "8px", color: "#DC2626" }}>
+                {escrowHoldings.filter((e) => e.disputeFlag).length}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                Frozen pending mediation resolution
+              </div>
+            </div>
+          </div>
+
+          {/* Refund Success Notification */}
+          {refundDisbursedSuccess && (
+            <div style={{ padding: "12px 18px", backgroundColor: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "8px", color: "#065F46", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
+              <CheckCircle2 size={16} />
+              {refundDisbursedSuccess}
+            </div>
+          )}
+
+          {/* Escrow Table */}
+          <div style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", border: "1px solid var(--border-color)", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--text-primary)" }}>
+                  Resident Security Deposit Escrow Ledger
+                </h3>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: "4px 0 0 0" }}>
+                  All security deposits collected via Cashfree auto-collect are quarantined in a dedicated nodal escrow account until tenant move-out clearance.
+                </p>
+              </div>
+            </div>
+
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)" }}>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>TENANT & PROPERTY</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>ROOM & BED</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>DEPOSIT HELD</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>DEDUCTIONS</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>NET REFUNDABLE</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600 }}>ESCROW STATUS</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600, textAlign: "right" }}>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {escrowHoldings.map((item) => {
+                  const totalDeductions = item.unpaidRent + item.electricityDeduction + item.damageDeduction;
+                  return (
+                    <tr key={item.id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                      <td style={{ padding: "14px 18px" }}>
+                        <Link
+                          href={`/admin/tenant/${item.tenantId}`}
+                          style={{ fontWeight: 700, color: "var(--text-primary)", textDecoration: "none" }}
+                          className="hoverUnderline"
+                        >
+                          {item.tenantName} &rarr;
+                        </Link>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                          {item.propertyName} • {item.tenantPhone}
+                        </div>
+                      </td>
+
+                      <td style={{ padding: "14px 18px" }}>
+                        <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{item.roomBed}</span>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>UPI: {item.upiId}</div>
+                      </td>
+
+                      <td style={{ padding: "14px 18px" }}>
+                        <span style={{ fontWeight: 700, color: "var(--teal-primary)" }}>₹{item.depositAmount.toLocaleString("en-IN")}</span>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Nodal Escrow</div>
+                      </td>
+
+                      <td style={{ padding: "14px 18px" }}>
+                        {totalDeductions > 0 ? (
+                          <div>
+                            <span style={{ color: "#DC2626", fontWeight: 700 }}>-₹{totalDeductions.toLocaleString("en-IN")}</span>
+                            <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                              {item.electricityDeduction > 0 && `Meter: ₹${item.electricityDeduction} `}
+                              {item.damageDeduction > 0 && `Damages: ₹${item.damageDeduction}`}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: "#059669", fontSize: "12px", fontWeight: 600 }}>₹0 Deductions</span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: "14px 18px" }}>
+                        <span style={{ fontWeight: 800, color: "#059669", fontSize: "14px" }}>
+                          ₹{item.netRefundable.toLocaleString("en-IN")}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: "14px 18px" }}>
+                        {item.disputeFlag ? (
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", fontWeight: 700, background: "#FEE2E2", color: "#DC2626", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <AlertTriangle size={12} /> DISPUTE HOLD
+                          </span>
+                        ) : item.status === "disbursed" ? (
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", fontWeight: 700, background: "#ECFDF5", color: "#059669", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <CheckCircle2 size={12} /> REFUND SETTLED
+                          </span>
+                        ) : item.status === "refund_approved" ? (
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", fontWeight: 700, background: "#FEF3C7", color: "#D97706", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <Clock size={12} /> READY FOR PAYOUT
+                          </span>
+                        ) : item.status === "moveout_pending" ? (
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", fontWeight: 700, background: "#EFF6FF", color: "#2563EB", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <Clock size={12} /> CLEARANCE REVIEW
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "12px", fontWeight: 700, background: "#F1F5F9", color: "#475569", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <Lock size={12} /> ACTIVE TENANCY
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                          {item.status !== "disbursed" ? (
+                            <button
+                              onClick={() => setSelectedRefundModal(item)}
+                              style={{
+                                padding: "6px 12px",
+                                backgroundColor: item.status === "refund_approved" ? "var(--teal-primary)" : "#F8FAFC",
+                                color: item.status === "refund_approved" ? "#FFFFFF" : "var(--text-primary)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <CreditCard size={13} /> {item.status === "refund_approved" ? "Disburse via Cashfree" : "Audit Clearance"}
+                            </button>
+                          ) : (
+                            <span style={{ color: "#059669", fontSize: "12px", fontWeight: 700 }}>
+                              Settled to {item.bankAccount}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Refund Approval & Payout Modal */}
+          {selectedRefundModal && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(15, 23, 42, 0.6)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: "20px",
+              }}
+            >
+              <div
+                style={{
+                  background: "#FFFFFF",
+                  borderRadius: "16px",
+                  width: "100%",
+                  maxWidth: "520px",
+                  padding: "28px",
+                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+                  <div>
+                    <h3 style={{ fontSize: "18px", fontWeight: 800, margin: 0, color: "var(--text-primary)" }}>
+                      Escrow Deposit Refund Clearance
+                    </h3>
+                    <p style={{ fontSize: "13px", color: "var(--text-secondary)", margin: "4px 0 0 0" }}>
+                      Resident: <strong>{selectedRefundModal.tenantName}</strong> ({selectedRefundModal.tenantId})
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedRefundModal(null)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: "20px" }}
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div style={{ background: "#F8FAFC", borderRadius: "10px", padding: "16px", border: "1px solid var(--border-color)", marginBottom: "16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Original Deposit Quarantined:</span>
+                    <strong>₹{selectedRefundModal.depositAmount.toLocaleString("en-IN")}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Unpaid Rent Deductions:</span>
+                    <span style={{ color: selectedRefundModal.unpaidRent > 0 ? "#DC2626" : "var(--text-secondary)", fontWeight: 600 }}>
+                      ₹{selectedRefundModal.unpaidRent.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Submeter Electricity Units:</span>
+                    <span style={{ color: selectedRefundModal.electricityDeduction > 0 ? "#DC2626" : "var(--text-secondary)", fontWeight: 600 }}>
+                      ₹{selectedRefundModal.electricityDeduction.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Damage & Sanitation Deductions:</span>
+                    <span style={{ color: selectedRefundModal.damageDeduction > 0 ? "#DC2626" : "var(--text-secondary)", fontWeight: 600 }}>
+                      ₹{selectedRefundModal.damageDeduction.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div style={{ borderTop: "1px dashed var(--border-color)", paddingTop: "10px", display: "flex", justifyContent: "space-between", fontSize: "15px", fontWeight: 800 }}>
+                    <span style={{ color: "var(--text-primary)" }}>Net Payout Amount:</span>
+                    <span style={{ color: "#059669" }}>₹{selectedRefundModal.netRefundable.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "10px", padding: "14px", marginBottom: "20px", fontSize: "12px", color: "#1E40AF" }}>
+                  <strong>Destination Bank Account:</strong>
+                  <div style={{ marginTop: "4px" }}>
+                    {selectedRefundModal.bankAccount} • IFSC: {selectedRefundModal.bankIfsc} • UPI: {selectedRefundModal.upiId}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    onClick={() => setSelectedRefundModal(null)}
+                    style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)", background: "#FFFFFF", color: "var(--text-primary)", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={disbursingRefund}
+                    onClick={async () => {
+                      setDisbursingRefund(true);
+                      await new Promise((r) => setTimeout(r, 1000));
+                      setEscrowHoldings((prev) =>
+                        prev.map((e) =>
+                          e.id === selectedRefundModal.id ? { ...e, status: "disbursed" } : e
+                        )
+                      );
+                      setRefundDisbursedSuccess(
+                        `Successfully disbursed ₹${selectedRefundModal.netRefundable.toLocaleString("en-IN")} to ${selectedRefundModal.tenantName} (${selectedRefundModal.bankAccount}) via Cashfree Master Payouts API.`
+                      );
+                      setDisbursingRefund(false);
+                      setSelectedRefundModal(null);
+                      setTimeout(() => setRefundDisbursedSuccess(null), 5000);
+                    }}
+                    style={{
+                      flex: 2,
+                      padding: "10px 16px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: "var(--teal-primary)",
+                      color: "#FFFFFF",
+                      fontWeight: 700,
+                      cursor: disbursingRefund ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    {disbursingRefund ? "Disbursing via Cashfree..." : `Disburse ₹${selectedRefundModal.netRefundable.toLocaleString("en-IN")} Now`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

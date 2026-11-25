@@ -1646,14 +1646,20 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                     <th>Monthly Rent</th>
                     <th>Payment Status</th>
                     <th>Deposit Escrow</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {occupiedBedsList.map((bed) => (
                     <tr key={bed.id}>
                       <td>
-                        <strong style={{ color: "#0F172A" }}>{bed.tenantName || "Resident"}</strong>
-                        <span className="subtext">Aadhaar Verified</span>
+                        <Link
+                          href={`/admin/tenant/${bed.id || "TEN0000001"}`}
+                          style={{ color: "#0F172A", textDecoration: "none", fontWeight: 700 }}
+                        >
+                          {bed.tenantName || "Resident"} &rarr;
+                        </Link>
+                        <span className="subtext" style={{ display: "block" }}>Aadhaar Verified</span>
                       </td>
                       <td>
                         <strong>Bed {bed.bedNumber}</strong>
@@ -1670,11 +1676,29 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                           <CheckCircle size={13} /> ₹15,000 in Escrow
                         </span>
                       </td>
+                      <td>
+                        <Link
+                          href={`/admin/tenant/${bed.id || "TEN0000001"}`}
+                          className="btnPrimary"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "6px 12px",
+                            fontSize: "12px",
+                            textDecoration: "none",
+                            borderRadius: "6px",
+                            fontWeight: 700,
+                          }}
+                        >
+                          Dossier &rarr;
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                   {occupiedBedsList.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "30px", color: "#64748B" }}>
+                      <td colSpan={7} style={{ textAlign: "center", padding: "30px", color: "#64748B" }}>
                         All beds in this property are currently vacant.
                       </td>
                     </tr>
@@ -1793,6 +1817,27 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
                         <span>
                           Active tenancy agreements are legally protected. To check out a tenant, an audited move-out notice must be submitted with a reason.
                         </span>
+                      </div>
+
+                      <div style={{ marginTop: "12px" }}>
+                        <Link
+                          href={`/admin/tenant/${selectedBedModal.bed.id || "TEN0000001"}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                            padding: "10px",
+                            borderRadius: "8px",
+                            background: "var(--teal-primary)",
+                            color: "#FFFFFF",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <Eye size={14} /> View Resident Dossier, Ledger &amp; Legal Agreements &rarr;
+                        </Link>
                       </div>
                     </div>
                   ) : selectedBedModal.bed.status === "maintenance" ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { collection, collectionGroup, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, limit } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -757,8 +758,21 @@ export default function TenantMasterConsole() {
                       }}
                     >
                       <td style={{ padding: "14px 18px" }}>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{t.name}</div>
-                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Link
+                          href={`/admin/tenant/${t.id}`}
+                          style={{
+                            fontWeight: 700,
+                            color: "var(--text-primary)",
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                          className="hoverUnderline"
+                        >
+                          {t.name} &rarr;
+                        </Link>
+                        <div style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                           <Phone size={11} /> {t.phone} • {t.id}
                         </div>
                       </td>
@@ -832,6 +846,24 @@ export default function TenantMasterConsole() {
 
                       <td style={{ padding: "14px 18px", textAlign: "right" }}>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                          <Link
+                            href={`/admin/tenant/${t.id}`}
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "var(--teal-primary)",
+                              color: "#FFFFFF",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              textDecoration: "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <Eye size={13} /> View Dossier &rarr;
+                          </Link>
+
                           <button
                             onClick={() => setSelectedTenant(t)}
                             style={{
@@ -848,7 +880,7 @@ export default function TenantMasterConsole() {
                               gap: "4px",
                             }}
                           >
-                            <Eye size={13} /> Dossier
+                            Drawer
                           </button>
 
                           {t.status !== "defaulter" ? (

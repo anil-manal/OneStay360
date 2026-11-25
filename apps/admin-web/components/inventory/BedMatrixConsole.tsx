@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { collection, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import {
@@ -914,6 +915,27 @@ export default function BedMatrixConsole() {
                       </span>
                     </div>
                   )}
+
+                  <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed #E2E8F0" }}>
+                    <Link
+                      href={`/admin/tenant/${selectedBed.bed.tenantId || "TEN0000001"}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        padding: "8px 12px",
+                        background: "var(--teal-primary)",
+                        color: "#FFFFFF",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                      }}
+                    >
+                      <User size={13} /> View Resident Dossier & Agreements &rarr;
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
