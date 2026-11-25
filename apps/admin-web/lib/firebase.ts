@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 // Production Firebase Web Client Configuration for OneStay360
 const firebaseConfig = {
@@ -16,13 +16,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
-// Authenticate session if client side
-if (typeof window !== "undefined") {
-  signInAnonymously(auth).catch((err) => {
-    // Non-fatal if anonymous auth disabled on project, rules permit public reads
-    console.debug("Anonymous auth notice:", err?.message || err);
-  });
-}
-
-export { app, db, auth };
+export { app, db, auth, googleProvider };

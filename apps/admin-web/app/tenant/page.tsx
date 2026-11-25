@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import {
   ShieldCheck,
   CreditCard,
@@ -25,15 +27,26 @@ import {
 } from "lucide-react";
 
 export default function TenantResidentHubPage() {
+  const router = useRouter();
+  const { user, userProfile, logout } = useAuth();
   const [rentPaid, setRentPaid] = useState(false);
   const [complaintModalOpen, setComplaintModalOpen] = useState(false);
   const [complaintText, setComplaintText] = useState("");
   const [complaintSubmitted, setComplaintSubmitted] = useState(false);
 
+  const displayName = userProfile?.displayName || user?.displayName || user?.phoneNumber || "Aarav Sharma";
+
+  const handleLogout = async () => {
+    await logout();
+    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+    const isSubdomain = hostname.startsWith("app.") || hostname.startsWith("my.") || hostname.startsWith("tenant.");
+    router.push(isSubdomain ? "/login" : "/tenant/login");
+  };
+
   const resident = {
-    name: "Aarav Sharma",
-    phone: "+91 98234 56789",
-    email: "aarav.sharma@example.com",
+    name: displayName,
+    phone: user?.phoneNumber || "+91 98234 56789",
+    email: user?.email || "aarav.sharma@example.com",
     propertyName: "Zolo CyberPark Premier Residency",
     room: "Room 101",
     bed: "Bed B-1 (Window Side)",
@@ -143,6 +156,25 @@ export default function TenantResidentHubPage() {
             >
               <ShieldCheck size={14} /> My Resident Passport
             </Link>
+
+            <button
+              onClick={handleLogout}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid #CBD5E1",
+                background: "#FFFFFF",
+                color: "#475569",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              <LogOut size={14} /> Sign Out
+            </button>
           </div>
         </div>
       </header>
