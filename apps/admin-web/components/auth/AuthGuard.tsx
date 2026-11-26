@@ -30,6 +30,10 @@ export default function AuthGuard({ children, requiredPortal }: AuthGuardProps) 
         targetLogin = "/login";
       }
 
+      if (pathname && pathname !== "/" && !pathname.includes("/login")) {
+        targetLogin += `?returnUrl=${encodeURIComponent(pathname)}`;
+      }
+
       router.push(targetLogin);
     }
   }, [user, loading, requiredPortal, router]);

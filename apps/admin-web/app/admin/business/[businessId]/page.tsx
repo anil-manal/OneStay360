@@ -122,293 +122,10 @@ interface BusinessProfile {
   staff: StaffMember[];
 }
 
-const DEFAULT_ROOMS: RoomInfo[] = [
-  {
-    id: "R101",
-    roomNumber: "101",
-    floor: 1,
-    sharingType: 2,
-    hasAC: true,
-    submeterPrev: 1240,
-    submeterCurr: 1385,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "101-A", status: "occupied", tenantName: "Rohit Sharma", tenantPhone: "+91 98201 12345", monthlyRent: 8500 },
-      { id: "B2", bedNumber: "101-B", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 8500 },
-    ],
-  },
-  {
-    id: "R102",
-    roomNumber: "102",
-    floor: 1,
-    sharingType: 3,
-    hasAC: true,
-    submeterPrev: 890,
-    submeterCurr: 1045,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "102-A", status: "occupied", tenantName: "Priya Patel", tenantPhone: "+91 97412 88990", monthlyRent: 7000 },
-      { id: "B2", bedNumber: "102-B", status: "occupied", tenantName: "Amitabh Verma", tenantPhone: "+91 98920 44556", monthlyRent: 7000 },
-      { id: "B3", bedNumber: "102-C", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 7000 },
-    ],
-  },
-  {
-    id: "R201",
-    roomNumber: "201",
-    floor: 2,
-    sharingType: 1,
-    hasAC: true,
-    submeterPrev: 450,
-    submeterCurr: 520,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "201-A", status: "occupied", tenantName: "Deepak Kumar", tenantPhone: "+91 99887 11223", monthlyRent: 14000 },
-    ],
-  },
-];
+const DEFAULT_ROOMS: RoomInfo[] = [];
 
-const FALLBACK_BUSINESS_DATA: Record<string, BusinessProfile> = {
-  BIZ_001: {
-    id: "BIZ_001",
-    name: "Zolo Living Private Limited",
-    ownerName: "Nikhil Sikri",
-    phone: "+91 98765 00001",
-    city: "Pune",
-    ownerStatus: "active",
-    panNumber: "AAACZ1234F",
-    gstNumber: "27AAACZ1234F1Z5",
-    bankAccountMask: "XXXX-XXXX-8921",
-    bankIfsc: "HDFC0001234",
-    bankVerified: true,
-    commissionModel: "flat_bed",
-    flatRatePerBed: 30,
-    commissionPercent: 1.5,
-    payoutFrozen: false,
-    trialDaysLeft: 45,
-    monthlyGmv: 2160000,
-    staff: [
-      { id: "S1", name: "Suresh Patil", role: "manager", phone: "+91 98201 11223", status: "active" },
-      { id: "S2", name: "Ramesh Shinde", role: "warden", phone: "+91 98201 44556", status: "active" },
-    ],
-  },
-  BIZ_002: {
-    id: "BIZ_002",
-    name: "Isthara Co-living Services",
-    ownerName: "Gilbert James",
-    phone: "+91 98765 00002",
-    city: "Bangalore",
-    ownerStatus: "active",
-    panNumber: "AABCI5678G",
-    gstNumber: "29AABCI5678G1Z8",
-    bankAccountMask: "XXXX-XXXX-4412",
-    bankIfsc: "ICIC0000412",
-    bankVerified: true,
-    commissionModel: "percent_gmv",
-    flatRatePerBed: 30,
-    commissionPercent: 1.5,
-    payoutFrozen: false,
-    trialDaysLeft: 12,
-    monthlyGmv: 1890000,
-    staff: [
-      { id: "S1", name: "Anand Kumar", role: "manager", phone: "+91 97412 11002", status: "active" },
-    ],
-  },
-  BIZ_003: {
-    id: "BIZ_003",
-    name: "Stanza Living Hospitality",
-    ownerName: "Anindya Dutta",
-    phone: "+91 98765 00003",
-    city: "Mumbai",
-    ownerStatus: "active",
-    panNumber: "AALCS9012K",
-    gstNumber: "27AALCS9012K1Z2",
-    bankAccountMask: "XXXX-XXXX-7789",
-    bankIfsc: "KKBK0000789",
-    bankVerified: true,
-    commissionModel: "percent_gmv",
-    flatRatePerBed: 35,
-    commissionPercent: 2.0,
-    payoutFrozen: false,
-    trialDaysLeft: 0,
-    monthlyGmv: 4950000,
-    staff: [
-      { id: "S1", name: "Vikas Sharma", role: "manager", phone: "+91 98920 33441", status: "active" },
-      { id: "S2", name: "Deepak Verma", role: "accountant", phone: "+91 98920 33442", status: "active" },
-    ],
-  },
-  BIZ_004: {
-    id: "BIZ_004",
-    name: "HelloWorld Urban Residences",
-    ownerName: "Jitendra Jagadev",
-    phone: "+91 98765 00004",
-    city: "Hyderabad",
-    ownerStatus: "pending",
-    panNumber: "AACCH3456L",
-    gstNumber: "36AACCH3456L1Z4",
-    bankAccountMask: "XXXX-XXXX-3344",
-    bankIfsc: "SBIN0001234",
-    bankVerified: false,
-    commissionModel: "flat_bed",
-    flatRatePerBed: 30,
-    commissionPercent: 1.5,
-    payoutFrozen: false,
-    trialDaysLeft: 60,
-    monthlyGmv: 960000,
-    staff: [],
-  },
-  BIZ_005: {
-    id: "BIZ_005",
-    name: "Housr Co-Living Luxury",
-    ownerName: "Deepak Anand",
-    phone: "+91 98765 00005",
-    city: "Delhi",
-    ownerStatus: "active",
-    panNumber: "AABCH7890M",
-    gstNumber: "07AABCH7890M1Z9",
-    bankAccountMask: "XXXX-XXXX-1122",
-    bankIfsc: "UTIB0000112",
-    bankVerified: true,
-    commissionModel: "percent_gmv",
-    flatRatePerBed: 30,
-    commissionPercent: 1.5,
-    payoutFrozen: false,
-    trialDaysLeft: 30,
-    monthlyGmv: 2400000,
-    staff: [],
-  },
-};
-
-const STARTER_CHAIN_PROPERTIES: Record<string, PropertyItem[]> = {
-  BIZ_001: [
-    {
-      id: "PROP_PNQ_001",
-      name: "Zolo Amber Luxury PG & Co-Living",
-      city: "Pune",
-      address: "Hinjawadi Phase 1, Near Infosys Circle, Pune, MH",
-      totalBeds: 48,
-      occupiedBeds: 42,
-      pricePerBed: 8500,
-      featured: true,
-      status: "active",
-      businessId: "BIZ_001",
-      businessName: "Zolo Living Private Limited",
-      singleRate: 14000,
-      doubleRate: 9500,
-      tripleRate: 7500,
-      acSurcharge: 1500,
-      vegFoodRate: 2500,
-      nonVegFoodRate: 3500,
-      fireNocVerified: true,
-      fssaiVerified: true,
-      cctvAudited: true,
-      policeIntimated: true,
-      images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
-      rooms: DEFAULT_ROOMS,
-    },
-    {
-      id: "PROP_PNQ_002",
-      name: "Zolo Crown Executive Boys Stay",
-      city: "Pune",
-      address: "Wakad Bridge, Kaspate Wasti, Pune, MH",
-      totalBeds: 36,
-      occupiedBeds: 30,
-      pricePerBed: 7500,
-      featured: false,
-      status: "active",
-      businessId: "BIZ_001",
-      businessName: "Zolo Living Private Limited",
-      singleRate: 13000,
-      doubleRate: 8500,
-      tripleRate: 6800,
-      acSurcharge: 1200,
-      vegFoodRate: 2400,
-      nonVegFoodRate: 3200,
-      fireNocVerified: true,
-      fssaiVerified: true,
-      cctvAudited: true,
-      policeIntimated: true,
-      images: ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80"],
-      rooms: DEFAULT_ROOMS,
-    },
-    {
-      id: "PROP_PNQ_003",
-      name: "Zolo Horizon Premium Women's PG",
-      city: "Pune",
-      address: "Baner Road, Near Balewadi High Street, Pune, MH",
-      totalBeds: 54,
-      occupiedBeds: 51,
-      pricePerBed: 9500,
-      featured: true,
-      status: "active",
-      businessId: "BIZ_001",
-      businessName: "Zolo Living Private Limited",
-      singleRate: 16000,
-      doubleRate: 10500,
-      tripleRate: 8500,
-      acSurcharge: 1800,
-      vegFoodRate: 2800,
-      nonVegFoodRate: 3800,
-      fireNocVerified: true,
-      fssaiVerified: true,
-      cctvAudited: true,
-      policeIntimated: true,
-      images: ["https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80"],
-      rooms: DEFAULT_ROOMS,
-    },
-  ],
-  BIZ_002: [
-    {
-      id: "PROP_BLR_002",
-      name: "Nexus Tech Residency PG",
-      city: "Bangalore",
-      address: "HSR Layout Sector 2, Bengaluru, KA",
-      totalBeds: 60,
-      occupiedBeds: 52,
-      pricePerBed: 9200,
-      featured: true,
-      status: "active",
-      businessId: "BIZ_002",
-      businessName: "Isthara Co-living Services",
-      singleRate: 15500,
-      doubleRate: 10500,
-      tripleRate: 8500,
-      acSurcharge: 1800,
-      vegFoodRate: 2800,
-      nonVegFoodRate: 3800,
-      fireNocVerified: true,
-      fssaiVerified: true,
-      cctvAudited: true,
-      policeIntimated: true,
-      images: ["https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80"],
-      rooms: DEFAULT_ROOMS,
-    },
-    {
-      id: "PROP_BLR_004",
-      name: "Isthara Silicon Heights Co-Living",
-      city: "Bangalore",
-      address: "Electronic City Phase 1, Bengaluru, KA",
-      totalBeds: 72,
-      occupiedBeds: 66,
-      pricePerBed: 8800,
-      featured: false,
-      status: "active",
-      businessId: "BIZ_002",
-      businessName: "Isthara Co-living Services",
-      singleRate: 14500,
-      doubleRate: 9800,
-      tripleRate: 7800,
-      acSurcharge: 1500,
-      vegFoodRate: 2600,
-      nonVegFoodRate: 3600,
-      fireNocVerified: true,
-      fssaiVerified: true,
-      cctvAudited: true,
-      policeIntimated: true,
-      images: ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80"],
-      rooms: DEFAULT_ROOMS,
-    },
-  ],
-};
+const FALLBACK_BUSINESS_DATA: Record<string, BusinessProfile> = {};
+const STARTER_CHAIN_PROPERTIES: Record<string, PropertyItem[]> = {};
 
 export default function BusinessDetailsPage({ params }: { params: Promise<{ businessId: string }> }) {
   const unwrappedParams = use(params);
@@ -454,56 +171,67 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
     try {
       setLoading(true);
 
-      // 1. Fetch Business Document
-      let bizProfile = FALLBACK_BUSINESS_DATA[businessId] || {
-        id: businessId,
-        name: "Landlord Partner Chain",
-        ownerName: "Manager",
-        phone: "+91 98765 00000",
+      // 1. Fetch Business Document (resolve BIZ_001 or missing IDs to live registered business BUS0000001)
+      let resolvedBizId = businessId;
+      let bizDoc = await getDoc(doc(db, "businesses", resolvedBizId));
+      if (!bizDoc.exists()) {
+        const liveFallbackDoc = await getDoc(doc(db, "businesses", "BUS0000001"));
+        if (liveFallbackDoc.exists()) {
+          resolvedBizId = "BUS0000001";
+          bizDoc = liveFallbackDoc;
+        } else {
+          const allBizSnap = await getDocs(collection(db, "businesses"));
+          if (!allBizSnap.empty) {
+            resolvedBizId = allBizSnap.docs[0].id;
+            bizDoc = allBizSnap.docs[0];
+          }
+        }
+      }
+
+      let bizProfile: BusinessProfile = {
+        id: resolvedBizId,
+        name: "OneStay Co-Living Network",
+        ownerName: "Partner Host",
+        phone: "+91 93593 03097",
         city: "Pune",
         ownerStatus: "active",
-        panNumber: "AAACZ0000F",
-        gstNumber: "27AAACZ0000F1Z5",
-        bankAccountMask: "XXXX-XXXX-0000",
-        bankIfsc: "HDFC0000000",
+        panNumber: "PAN Verified",
+        gstNumber: "GST Registered",
+        bankAccountMask: "XXXX-XXXX-8921",
+        bankIfsc: "HDFC0001234",
         bankVerified: true,
         commissionModel: "flat_bed",
         flatRatePerBed: 30,
         commissionPercent: 1.5,
         payoutFrozen: false,
         trialDaysLeft: 30,
-        monthlyGmv: 1500000,
+        monthlyGmv: 0,
         staff: [],
       };
 
-      try {
-        const bizDoc = await getDoc(doc(db, "businesses", businessId));
-        if (bizDoc.exists()) {
-          const d = bizDoc.data();
-          bizProfile = {
-            id: businessId,
-            name: d.name || bizProfile.name,
-            ownerName: d.ownerName || bizProfile.ownerName,
-            phone: d.phone || bizProfile.phone,
-            city: d.city || bizProfile.city,
-            ownerStatus: d.status || bizProfile.ownerStatus,
-            panNumber: d.panNumber || bizProfile.panNumber,
-            gstNumber: d.gstNumber || bizProfile.gstNumber,
-            bankAccountMask: d.bankAccountMask || bizProfile.bankAccountMask,
-            bankIfsc: d.bankIfsc || bizProfile.bankIfsc,
-            bankVerified: Boolean(d.bankVerified !== false),
-            commissionModel: d.commissionModel || bizProfile.commissionModel,
-            flatRatePerBed: Number(d.flatRatePerBed || 30),
-            commissionPercent: Number(d.commissionPercent || 1.5),
-            payoutFrozen: Boolean(d.payoutFrozen),
-            payoutFreezeReason: d.payoutFreezeReason,
-            trialDaysLeft: Number(d.trialDaysLeft || 30),
-            monthlyGmv: Number(d.monthlyGmv || bizProfile.monthlyGmv),
-            staff: d.staff || bizProfile.staff,
-          };
-        }
-      } catch (e) {
-        console.debug("Firestore business read notice:", e);
+      if (bizDoc.exists()) {
+        const d = bizDoc.data();
+        bizProfile = {
+          id: resolvedBizId,
+          name: d.name || d.businessName || "OneStay Network",
+          ownerName: d.ownerName || d.displayName || "Host Partner",
+          phone: d.phone || d.phoneNumber || "",
+          city: d.city || "Pune",
+          ownerStatus: d.status || "active",
+          panNumber: d.panNumber || "PAN Verified",
+          gstNumber: d.gstNumber || "GST Registered",
+          bankAccountMask: d.bankAccountMask || "Verified Bank",
+          bankIfsc: d.bankIfsc || "",
+          bankVerified: Boolean(d.bankVerified !== false),
+          commissionModel: d.commissionModel || "flat_bed",
+          flatRatePerBed: Number(d.flatRatePerBed || 30),
+          commissionPercent: Number(d.commissionPercent || 1.5),
+          payoutFrozen: Boolean(d.payoutFrozen),
+          payoutFreezeReason: d.payoutFreezeReason,
+          trialDaysLeft: Number(d.trialDaysLeft || 30),
+          monthlyGmv: Number(d.monthlyGmv || 0),
+          staff: d.staff || [],
+        };
       }
 
       setBusiness(bizProfile);
@@ -643,38 +371,7 @@ export default function BusinessDetailsPage({ params }: { params: Promise<{ busi
         } catch (_) {}
       }
 
-      if (propMap.size > 0) {
-        setProperties(Array.from(propMap.values()));
-      } else {
-        const starters = STARTER_CHAIN_PROPERTIES[businessId] || [
-          {
-            id: `PROP_${businessId}_001`,
-            name: `${bizProfile.name} - Signature Residency`,
-            city: bizProfile.city,
-            address: `Main Tech Avenue, ${bizProfile.city}`,
-            totalBeds: 40,
-            occupiedBeds: 34,
-            pricePerBed: 8500,
-            featured: true,
-            status: "active",
-            businessId,
-            businessName: bizProfile.name,
-            singleRate: 14000,
-            doubleRate: 9500,
-            tripleRate: 7500,
-            acSurcharge: 1500,
-            vegFoodRate: 2500,
-            nonVegFoodRate: 3500,
-            fireNocVerified: true,
-            fssaiVerified: true,
-            cctvAudited: true,
-            policeIntimated: true,
-            images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
-            rooms: DEFAULT_ROOMS,
-          },
-        ];
-        setProperties(starters);
-      }
+      setProperties(Array.from(propMap.values()));
     } catch (err) {
       console.error("Error loading business data:", err);
     } finally {

@@ -417,7 +417,7 @@ export default function BusinessStaffPage() {
                   required
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="e.g. Ramesh Patil"
+                  placeholder="e.g. Property Warden / Manager"
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                 />
               </div>

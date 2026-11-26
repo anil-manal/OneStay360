@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { ShieldAlert, Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  ShieldAlert,
+  Lock,
+  Mail,
+  ArrowRight,
+  ShieldCheck,
+  Building2,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react";
+import Link from "next/link";
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get("returnUrl");
   const { loginWithEmail, loginWithGoogle, authError, setAuthError } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -14,6 +26,9 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
 
   const getRedirectPath = () => {
+    if (returnUrl) {
+      return decodeURIComponent(returnUrl);
+    }
     const hostname = typeof window !== "undefined" ? window.location.hostname : "";
     return hostname.startsWith("admin.") ? "/" : "/admin";
   };
@@ -25,7 +40,7 @@ export default function AdminLoginPage() {
     try {
       await loginWithEmail(email, password);
       router.push(getRedirectPath());
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
@@ -38,7 +53,7 @@ export default function AdminLoginPage() {
     try {
       await loginWithGoogle("admin");
       router.push(getRedirectPath());
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoading(false);
@@ -52,82 +67,132 @@ export default function AdminLoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0F172A",
+        background: "#F8FAFC",
         fontFamily: "var(--font-sans, system-ui, sans-serif)",
-        padding: "20px",
+        padding: "24px",
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: "420px",
-          background: "#1E293B",
+          maxWidth: "440px",
+          background: "#FFFFFF",
           borderRadius: "20px",
-          border: "1px solid #334155",
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+          border: "1px solid #E2E8F0",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02)",
           overflow: "hidden",
         }}
       >
-        <div style={{ padding: "32px 28px 24px", textAlign: "center" }}>
+        {/* Brand Banner */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
+            padding: "32px 28px",
+            color: "#FFFFFF",
+            textAlign: "center",
+            position: "relative",
+          }}
+        >
           <div
             style={{
-              width: "52px",
-              height: "52px",
+              width: "48px",
+              height: "48px",
               borderRadius: "14px",
-              background: "rgba(13, 148, 136, 0.15)",
-              border: "1px solid rgba(13, 148, 136, 0.3)",
-              margin: "0 auto 16px auto",
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(6px)",
+              margin: "0 auto 12px auto",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#2DD4BF",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
             }}
           >
-            <ShieldAlert size={28} />
+            <ShieldCheck size={26} color="#38BDF8" />
           </div>
-          <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#FFFFFF", margin: 0 }}>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 800,
+              letterSpacing: "0.8px",
+              background: "rgba(56, 189, 248, 0.2)",
+              color: "#38BDF8",
+              padding: "3px 10px",
+              borderRadius: "999px",
+              textTransform: "uppercase",
+              display: "inline-block",
+              marginBottom: "8px",
+            }}
+          >
+            System Governance
+          </span>
+          <h2 style={{ fontSize: "22px", fontWeight: 800, margin: 0, letterSpacing: "-0.5px" }}>
             Super Admin Console
           </h2>
           <p style={{ fontSize: "13px", color: "#94A3B8", margin: "6px 0 0 0" }}>
-            OneStay360 Master Governance & Network Control
+            Network Control, Partner Audits & Financial Clearance
           </p>
         </div>
 
-        <div style={{ padding: "0 28px 32px" }}>
+        {/* Form Container */}
+        <div style={{ padding: "32px 28px" }}>
           {authError && (
             <div
               style={{
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "#FEF2F2",
+                border: "1px solid #FCA5A5",
                 borderRadius: "10px",
                 padding: "10px 14px",
                 fontSize: "12px",
-                color: "#F87171",
-                marginBottom: "18px",
+                color: "#991B1B",
+                marginBottom: "20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
-              {authError}
+              <ShieldAlert size={16} />
+              <span>{authError}</span>
             </div>
           )}
 
+          {returnUrl && (
+            <div
+              style={{
+                background: "#EFF6FF",
+                border: "1px solid #BFDBFE",
+                borderRadius: "10px",
+                padding: "10px 14px",
+                fontSize: "12px",
+                color: "#1E40AF",
+                marginBottom: "20px",
+              }}
+            >
+              Sign in to proceed to <strong>{decodeURIComponent(returnUrl)}</strong>
+            </div>
+          )}
+
+          {/* Google 1-Click Sign-in */}
           <button
+            type="button"
             onClick={handleAdminGoogle}
             disabled={loading}
             style={{
               width: "100%",
-              padding: "10px 16px",
+              padding: "12px 16px",
               borderRadius: "10px",
-              border: "1px solid #334155",
-              background: "#0F172A",
+              border: "1px solid #CBD5E1",
+              background: "#FFFFFF",
               fontSize: "13px",
               fontWeight: 700,
-              color: "#E2E8F0",
+              color: "#1E293B",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: "10px",
               marginBottom: "20px",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+              transition: "all 0.15s ease",
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24">
@@ -148,7 +213,7 @@ export default function AdminLoginPage() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
               />
             </svg>
-            Sign in with Authorized Google Workspace
+            Sign in with Google Workspace
           </button>
 
           <div
@@ -156,79 +221,91 @@ export default function AdminLoginPage() {
               display: "flex",
               alignItems: "center",
               gap: "10px",
-              margin: "18px 0",
-              color: "#64748B",
+              margin: "20px 0",
+              color: "#94A3B8",
               fontSize: "11px",
               fontWeight: 700,
               textTransform: "uppercase",
             }}
           >
-            <div style={{ flex: 1, height: "1px", background: "#334155" }} />
+            <div style={{ flex: 1, height: "1px", background: "#E2E8F0" }} />
             <span>Or Enter Credentials</span>
-            <div style={{ flex: 1, height: "1px", background: "#334155" }} />
+            <div style={{ flex: 1, height: "1px", background: "#E2E8F0" }} />
           </div>
 
           <form onSubmit={handleAdminLogin}>
-            <div style={{ marginBottom: "14px" }}>
+            <div style={{ marginBottom: "16px" }}>
               <label
                 style={{
                   display: "block",
                   fontSize: "12px",
                   fontWeight: 700,
-                  color: "#94A3B8",
+                  color: "#334155",
                   marginBottom: "6px",
                 }}
               >
                 Administrator Email
               </label>
-              <input
-                type="email"
-                required
-                placeholder="admin@onestay360.in"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "#0F172A",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  color: "#FFFFFF",
-                  outline: "none",
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <Mail
+                  size={16}
+                  color="#94A3B8"
+                  style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }}
+                />
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@onestay360.in"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px 10px 38px",
+                    border: "1px solid #CBD5E1",
+                    borderRadius: "10px",
+                    fontSize: "13px",
+                    color: "#0F172A",
+                    outline: "none",
+                  }}
+                />
+              </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "24px" }}>
               <label
                 style={{
                   display: "block",
                   fontSize: "12px",
                   fontWeight: 700,
-                  color: "#94A3B8",
+                  color: "#334155",
                   marginBottom: "6px",
                 }}
               >
                 Security Key / Password
               </label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "#0F172A",
-                  border: "1px solid #334155",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  color: "#FFFFFF",
-                  outline: "none",
-                }}
-              />
+              <div style={{ position: "relative" }}>
+                <Lock
+                  size={16}
+                  color="#94A3B8"
+                  style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }}
+                />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px 10px 38px",
+                    border: "1px solid #CBD5E1",
+                    borderRadius: "10px",
+                    fontSize: "13px",
+                    color: "#0F172A",
+                    outline: "none",
+                  }}
+                />
+              </div>
             </div>
 
             <button
@@ -237,7 +314,7 @@ export default function AdminLoginPage() {
               style={{
                 width: "100%",
                 padding: "12px",
-                background: "#0D9488",
+                background: "#0F172A",
                 color: "#FFFFFF",
                 border: "none",
                 borderRadius: "10px",
@@ -247,15 +324,70 @@ export default function AdminLoginPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: "6px",
+                gap: "8px",
+                boxShadow: "0 4px 6px -1px rgba(15, 23, 42, 0.2)",
               }}
             >
               {loading ? "Authenticating..." : "Authorize Admin Session"}
               <ArrowRight size={16} />
             </button>
           </form>
+
+          {/* Quick Operator Access */}
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "12px",
+              background: "#F1F5F9",
+              borderRadius: "10px",
+              textAlign: "center",
+            }}
+          >
+            <span style={{ fontSize: "11px", color: "#64748B", display: "block", marginBottom: "6px" }}>
+              Authorized Workspace Operator:
+            </span>
+            <button
+              type="button"
+              onClick={handleAdminGoogle}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#0F172A",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Continue with Google (anilmanal992115@gmail.com)
+            </button>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#F8FAFC",
+            color: "#64748B",
+            fontSize: "14px",
+          }}
+        >
+          Loading Admin Security Interface...
+        </div>
+      }
+    >
+      <AdminLoginForm />
+    </Suspense>
   );
 }

@@ -110,69 +110,11 @@ interface PropertyDetails {
   rooms: RoomInfo[];
 }
 
-const DEFAULT_ROOMS: RoomInfo[] = [
-  {
-    id: "R101",
-    roomNumber: "101",
-    floor: 1,
-    sharingType: 2,
-    hasAC: true,
-    submeterPrev: 1240,
-    submeterCurr: 1385,
-    submeterRate: 12,
-    submeterPhotoUrl: "https://images.unsplash.com/photo-1558441719-8b4e0c818a1c?auto=format&fit=crop&w=600&q=80",
-    beds: [
-      { id: "B1", bedNumber: "101-A", status: "occupied", tenantName: "Rohit Sharma", tenantPhone: "+91 98201 12345", monthlyRent: 8500 },
-      { id: "B2", bedNumber: "101-B", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 8500 },
-    ],
-  },
-  {
-    id: "R102",
-    roomNumber: "102",
-    floor: 1,
-    sharingType: 3,
-    hasAC: true,
-    submeterPrev: 890,
-    submeterCurr: 1045,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "102-A", status: "occupied", tenantName: "Priya Patel", tenantPhone: "+91 97412 88990", monthlyRent: 7000 },
-      { id: "B2", bedNumber: "102-B", status: "occupied", tenantName: "Amitabh Verma", tenantPhone: "+91 98920 44556", monthlyRent: 7000 },
-      { id: "B3", bedNumber: "102-C", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 7000 },
-    ],
-  },
-  {
-    id: "R201",
-    roomNumber: "201",
-    floor: 2,
-    sharingType: 1,
-    hasAC: true,
-    submeterPrev: 450,
-    submeterCurr: 520,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "201-A", status: "occupied", tenantName: "Deepak Kumar", tenantPhone: "+91 99887 11223", monthlyRent: 14000 },
-    ],
-  },
-  {
-    id: "R202",
-    roomNumber: "202",
-    floor: 2,
-    sharingType: 2,
-    hasAC: false,
-    submeterPrev: 610,
-    submeterCurr: 720,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "202-A", status: "occupied", tenantName: "Sneha Reddy", tenantPhone: "+91 98765 22334", monthlyRent: 8000 },
-      { id: "B2", bedNumber: "202-B", status: "maintenance", tenantName: null, tenantPhone: null, monthlyRent: 8000 },
-    ],
-  },
-];
+const DEFAULT_ROOMS: RoomInfo[] = [];
 
 function normalizeRooms(rawRooms: any[], basePrice: number, pricing?: any): RoomInfo[] {
   if (!Array.isArray(rawRooms) || rawRooms.length === 0) {
-    return DEFAULT_ROOMS;
+    return [];
   }
 
   return rawRooms.map((r: any, idx: number) => {
@@ -249,98 +191,7 @@ function normalizeRooms(rawRooms: any[], basePrice: number, pricing?: any): Room
   });
 }
 
-const FALLBACK_PROPERTIES: Record<string, PropertyDetails> = {
-  PROP_PNQ_001: {
-    id: "PROP_PNQ_001",
-    name: "Zolo Amber Luxury PG & Co-Living",
-    city: "Pune",
-    cityCode: "PNQ",
-    address: "Hinjawadi Phase 1, Near Infosys Circle, Pune, MH",
-    description: "Premium co-living residence with biometric access, high-speed Wi-Fi, 3 times hygienic food, and daily housekeeping.",
-    totalBeds: 48,
-    occupiedBeds: 42,
-    pricePerBed: 8500,
-    featured: true,
-    status: "active",
-    businessId: "BIZ_001",
-    businessName: "Zolo Living Private Limited",
-    businessPhone: "+91 98765 00001",
-    ratingAverage: 4.8,
-    ratingCount: 46,
-    images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 14000,
-    doubleRate: 9500,
-    tripleRate: 7500,
-    acSurcharge: 1500,
-    vegFoodRate: 2500,
-    nonVegFoodRate: 3500,
-    fireNocVerified: true,
-    fssaiVerified: true,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-  },
-  PROP_BLR_002: {
-    id: "PROP_BLR_002",
-    name: "Nexus Tech Residency PG",
-    city: "Bangalore",
-    cityCode: "BLR",
-    address: "HSR Layout Sector 2, Bengaluru, KA",
-    description: "Walking distance from tech hubs. Fiber internet, daily housekeeping, biometrics.",
-    totalBeds: 60,
-    occupiedBeds: 52,
-    pricePerBed: 9200,
-    featured: true,
-    status: "active",
-    businessId: "BIZ_002",
-    businessName: "Isthara Co-living Services",
-    businessPhone: "+91 98765 00002",
-    ratingAverage: 4.9,
-    ratingCount: 52,
-    images: ["https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 15500,
-    doubleRate: 10500,
-    tripleRate: 8500,
-    acSurcharge: 1800,
-    vegFoodRate: 2800,
-    nonVegFoodRate: 3800,
-    fireNocVerified: true,
-    fssaiVerified: true,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-  },
-  PROP_BOM_003: {
-    id: "PROP_BOM_003",
-    name: "Bayview Executive Stays",
-    city: "Mumbai",
-    cityCode: "BOM",
-    address: "Andheri West, Near Metro Station, Mumbai, MH",
-    description: "Executive co-living space with single and twin-sharing AC accommodations.",
-    totalBeds: 36,
-    occupiedBeds: 28,
-    pricePerBed: 11500,
-    featured: false,
-    status: "active",
-    businessId: "BIZ_003",
-    businessName: "Stanza Living Hospitality",
-    businessPhone: "+91 98765 00003",
-    ratingAverage: 4.7,
-    ratingCount: 29,
-    images: ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 18000,
-    doubleRate: 12500,
-    tripleRate: 9500,
-    acSurcharge: 2000,
-    vegFoodRate: 3000,
-    nonVegFoodRate: 4000,
-    fireNocVerified: true,
-    fssaiVerified: false,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-  },
-};
+const FALLBACK_PROPERTIES: Record<string, PropertyDetails> = {};
 
 export default function PropertyDetailsPage({ params }: { params: Promise<{ propertyId: string }> }) {
   const unwrappedParams = use(params);
@@ -384,6 +235,18 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ prop
         }
       } catch (e) {
         console.debug("Firestore direct property load notice:", e);
+      }
+
+      // 1b. Check under business subcollection (e.g. businesses/BUS0000001/properties)
+      if (!rawDoc) {
+        try {
+          const bizIdMatch = propertyId.match(/^(BUS\d{7})/);
+          const bizId = bizIdMatch ? bizIdMatch[1] : "BUS0000001";
+          const subDoc = await getDoc(doc(db, "businesses", bizId, "properties", propertyId));
+          if (subDoc.exists()) {
+            rawDoc = subDoc.data();
+          }
+        } catch (_) {}
       }
 
       // 2. City subcollection lookup fallback if not found in root
