@@ -141,24 +141,24 @@ export default function TenantMasterConsole() {
             name: dat.name || dat.fullName || dat.displayName || "Resident",
             phone: dat.phone || dat.mobileNumber || "No Phone",
             email: dat.email || "No Email",
-            businessId: dat.businessId || "BUS0000001",
-            businessName: dat.businessName || "OneStay PG Hub",
-            propertyId: dat.propertyId || "BUS0000001PNR001",
-            propertyName: dat.propertyName || "Ram Nivas PG",
-            roomNumber: dat.roomNumber || (dat.roomId ? `Room ${dat.roomId}` : "101"),
-            bedNumber: dat.bedNumber || (dat.bedId ? `Bed ${dat.bedId}` : "1"),
-            rentAmount: dat.monthlyRent || dat.additionalInfo?.totalFirstMonth || 7000,
-            depositAmount: dat.additionalInfo?.depositAmount || 5000,
+            businessId: dat.businessId || "",
+            businessName: dat.businessName || "OneStay",
+            propertyId: dat.propertyId || "",
+            propertyName: dat.propertyName || "—",
+            roomNumber: dat.roomNumber || (dat.roomId ? String(dat.roomId) : "—"),
+            bedNumber: dat.bedNumber || (dat.bedId ? String(dat.bedId) : "—"),
+            rentAmount: dat.monthlyRent || dat.additionalInfo?.totalFirstMonth || 0,
+            depositAmount: dat.additionalInfo?.depositAmount || 0,
             status: isBlacklisted ? "defaulter" : (dat.status === "vacated" ? "vacated" : "active"),
-            kycStatus: dat.idNumber ? "verified" : (dat.kycStatus || "verified"),
+            kycStatus: dat.idNumber ? "verified" : (dat.kycStatus || "pending"),
             aadhaarMasked: dat.idNumber
               ? `XXXX-XXXX-${String(dat.idNumber).slice(-4)}`
-              : "XXXX-XXXX-8421",
+              : "Not Provided",
             policeVerified: dat.status === "active" || dat.policeVerified === true,
-            emergencyContactName: dat.emergencyContactName || "Anil (Relative)",
-            emergencyContactPhone: dat.emergencyContactPhone || "+91 84968 58421",
+            emergencyContactName: dat.emergencyContactName || "Not Provided",
+            emergencyContactPhone: dat.emergencyContactPhone || "Not Provided",
             joinedDate: dat.checkInDate?.toDate ? dat.checkInDate.toDate().toLocaleDateString() : "Active Resident",
-            permanentAddress: dat.addressLine1 ? `${dat.addressLine1}, ${dat.city || ""}` : "Chhatrapati Sambhajinagar, Maharashtra",
+            permanentAddress: dat.addressLine1 ? `${dat.addressLine1}, ${dat.city || ""}` : "Not Provided",
           };
 
           tenantMap.set(tId, profile);
@@ -179,7 +179,7 @@ export default function TenantMasterConsole() {
           const existing = tenantMap.get(tId);
           if (existing) {
             // Enrich existing
-            if (dat.idNumber && !existing.aadhaarMasked?.includes(String(dat.idNumber).slice(-4))) {
+            if (dat.idNumber) {
               existing.aadhaarMasked = `XXXX-XXXX-${String(dat.idNumber).slice(-4)}`;
             }
             if (dat.addressLine1) {
@@ -192,25 +192,25 @@ export default function TenantMasterConsole() {
           } else {
             tenantMap.set(tId, {
               id: tId,
-              name: dat.name || dat.fullName || dat.displayName || `Tenant ${tId}`,
+              name: dat.name || dat.fullName || dat.displayName || `Resident ${tId}`,
               phone: dat.phone || dat.mobileNumber || "No Phone",
               email: dat.email || "No Email",
-              businessId: dat.businessId || "BUS0000001",
-              businessName: dat.businessName || "OneStay PG Hub",
-              propertyId: dat.propertyId || dat.currentPropertyId || "BUS0000001PNR001",
-              propertyName: dat.propertyName || "Ram Nivas PG",
-              roomNumber: dat.roomNumber || "101",
-              bedNumber: dat.bedNumber || "1",
-              rentAmount: dat.monthlyRent || 7000,
-              depositAmount: dat.lastPaymentAmount || 5000,
+              businessId: dat.businessId || "",
+              businessName: dat.businessName || "OneStay",
+              propertyId: dat.propertyId || dat.currentPropertyId || "",
+              propertyName: dat.propertyName || "—",
+              roomNumber: dat.roomNumber || (dat.roomId ? String(dat.roomId) : "—"),
+              bedNumber: dat.bedNumber || (dat.bedId ? String(dat.bedId) : "—"),
+              rentAmount: dat.monthlyRent || 0,
+              depositAmount: dat.lastPaymentAmount || 0,
               status: isBlacklisted ? "defaulter" : (dat.status === "vacated" ? "vacated" : "active"),
               kycStatus: dat.idNumber ? "verified" : "pending",
-              aadhaarMasked: dat.idNumber ? `XXXX-XXXX-${String(dat.idNumber).slice(-4)}` : "XXXX-XXXX-8421",
-              policeVerified: dat.profileComplete ?? true,
-              emergencyContactName: dat.emergencyContactName || "Guardian",
-              emergencyContactPhone: dat.emergencyContactPhone || "+91 98450 11223",
+              aadhaarMasked: dat.idNumber ? `XXXX-XXXX-${String(dat.idNumber).slice(-4)}` : "Not Provided",
+              policeVerified: dat.profileComplete ?? false,
+              emergencyContactName: dat.emergencyContactName || "Not Provided",
+              emergencyContactPhone: dat.emergencyContactPhone || "Not Provided",
               joinedDate: dat.createdAt?.toDate ? dat.createdAt.toDate().toLocaleDateString() : "Recent",
-              permanentAddress: dat.addressLine1 ? `${dat.addressLine1}, ${dat.city || ""}` : "Limbe Jalgaon, Chhatrapati Sambhajinagar",
+              permanentAddress: dat.addressLine1 ? `${dat.addressLine1}, ${dat.city || ""}` : "Not Provided",
             });
           }
         });
@@ -233,22 +233,22 @@ export default function TenantMasterConsole() {
               name: dat.tenantName,
               phone: dat.tenantPhone || "No Phone",
               email: dat.tenantEmail || "No Email",
-              businessId: dat.businessId || "BUS0000001",
-              businessName: dat.propertyName || "Ram Nivas PG",
-              propertyId: dat.propertyId || "BUS0000001PNR001",
-              propertyName: dat.propertyName || "Ram Nivas PG",
-              roomNumber: dat.roomNumber || "101",
-              bedNumber: dat.bedNumber || "1",
-              rentAmount: dat.monthlyRent || 7000,
-              depositAmount: dat.depositAmount || 5000,
+              businessId: dat.businessId || "",
+              businessName: dat.propertyName || "OneStay",
+              propertyId: dat.propertyId || "",
+              propertyName: dat.propertyName || "—",
+              roomNumber: dat.roomNumber || "—",
+              bedNumber: dat.bedNumber || "—",
+              rentAmount: dat.monthlyRent || 0,
+              depositAmount: dat.depositAmount || 0,
               status: isBlacklisted ? "defaulter" : (dat.status === "confirmed" ? "active" : "pending_kyc"),
               kycStatus: dat.kycDocumentUrl ? "verified" : "pending",
-              aadhaarMasked: "XXXX-XXXX-8421",
+              aadhaarMasked: "Not Provided",
               policeVerified: dat.status === "confirmed",
-              emergencyContactName: "Parent / Emergency Contact",
-              emergencyContactPhone: dat.tenantPhone || "+91 93593 03097",
+              emergencyContactName: "Not Provided",
+              emergencyContactPhone: "Not Provided",
               joinedDate: dat.createdAt?.toDate ? dat.createdAt.toDate().toLocaleDateString() : "Enrolled",
-              permanentAddress: "Maharashtra, India",
+              permanentAddress: "Not Provided",
             });
           }
         });
@@ -257,78 +257,7 @@ export default function TenantMasterConsole() {
       }
 
       const resultTenants = Array.from(tenantMap.values());
-      if (resultTenants.length > 0) {
-        setTenants(resultTenants);
-      } else {
-        setTenants([
-          {
-            id: "TEN0000001",
-            name: "Rohit Sharma",
-            phone: "+91 98201 12345",
-            email: "rohit.sharma@example.com",
-            businessId: "BIZ_001",
-            businessName: "Zolo Living Private Limited",
-            propertyId: "PROP_PNQ_001",
-            propertyName: "OneStay Prime Elite Co-Living",
-            roomNumber: "101",
-            bedNumber: "A",
-            rentAmount: 8500,
-            depositAmount: 10000,
-            status: "active",
-            kycStatus: "verified",
-            aadhaarMasked: "XXXX-XXXX-9821",
-            policeVerified: true,
-            emergencyContactName: "Rakesh Sharma (Father)",
-            emergencyContactPhone: "+91 98201 12340",
-            joinedDate: "15/01/2026",
-            permanentAddress: "Koregaon Park, Pune, Maharashtra",
-          },
-          {
-            id: "TEN0000002",
-            name: "Priya Patel",
-            phone: "+91 97412 88990",
-            email: "priya.patel@example.com",
-            businessId: "BIZ_002",
-            businessName: "Isthara Co-living Services",
-            propertyId: "PROP_BLR_002",
-            propertyName: "Nexus Tech Residency PG",
-            roomNumber: "204",
-            bedNumber: "B",
-            rentAmount: 9200,
-            depositAmount: 12000,
-            status: "active",
-            kycStatus: "verified",
-            aadhaarMasked: "XXXX-XXXX-4412",
-            policeVerified: true,
-            emergencyContactName: "Kiran Patel (Brother)",
-            emergencyContactPhone: "+91 97412 88995",
-            joinedDate: "01/02/2026",
-            permanentAddress: "HSR Layout, Bangalore, Karnataka",
-          },
-          {
-            id: "TEN0000003",
-            name: "Amitabh Verma",
-            phone: "+91 98920 44556",
-            email: "amitabh.verma@example.com",
-            businessId: "BIZ_003",
-            businessName: "Stanza Living Hospitality",
-            propertyId: "PROP_BOM_003",
-            propertyName: "Bayview Executive Stays",
-            roomNumber: "302",
-            bedNumber: "A",
-            rentAmount: 11500,
-            depositAmount: 15000,
-            status: "active",
-            kycStatus: "verified",
-            aadhaarMasked: "XXXX-XXXX-7789",
-            policeVerified: true,
-            emergencyContactName: "Sanjay Verma (Uncle)",
-            emergencyContactPhone: "+91 98920 44550",
-            joinedDate: "10/02/2026",
-            permanentAddress: "Andheri West, Mumbai, Maharashtra",
-          },
-        ]);
-      }
+      setTenants(resultTenants);
       setDefaulters(defaulterList);
     } catch (error) {
       console.error("Error fetching live tenant master records:", error);

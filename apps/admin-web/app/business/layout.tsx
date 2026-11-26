@@ -30,8 +30,8 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
     return <>{children}</>;
   }
 
-  const businessName = userProfile?.businessName || "Zolo Living Properties";
-  const businessId = userProfile?.businessId || "BIZ_001";
+  const businessName = userProfile?.businessName || "OneStay";
+  const businessId = userProfile?.businessId || "BUS0000001";
   const userRole = userProfile?.role || "HOST";
   const displayName = userProfile?.displayName || user?.displayName || user?.email?.split("@")[0] || "PG Host";
 

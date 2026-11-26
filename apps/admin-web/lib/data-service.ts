@@ -464,6 +464,404 @@ export async function submitEnrollmentRequest(requestData: {
 }
 
 // ─────────────────────────────────────────────
+// TENANT SERVICES (LIVE DATA & MOBILE APP PARITY)
+// ─────────────────────────────────────────────
+
+export interface TenantProfileData {
+  tenantId?: string;
+  userId?: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  alternatePhone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  officeInstituteName?: string;
+  officeInstituteId?: string;
+  nationality?: string;
+  motherTongue?: string;
+  idType?: string;
+  idNumber?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  profileComplete: boolean;
+  kycVerified: boolean;
+  status?: string;
+}
+
+export interface TenantStayData {
+  stayId?: string;
+  status: "active" | "vacated" | "pending_approval" | "none";
+  propertyId?: string;
+  propertyName?: string;
+  propertyAddress?: string;
+  propertyCity?: string;
+  propertyImage?: string;
+  businessId?: string;
+  businessName?: string;
+  roomId?: string;
+  roomNumber?: string;
+  bedId?: string;
+  bedNumber?: string;
+  monthlyRent?: number;
+  depositAmount?: number;
+  checkInDate?: string;
+  foodPlan?: {
+    notes?: string;
+    plan?: Record<string, string[]>;
+  };
+  amenities?: Record<string, boolean>;
+  // For pending enrollment requests
+  enrollmentRequestId?: string;
+  requestStatus?: string;
+  sharingType?: number;
+  expectedMoveInDate?: string;
+}
+
+/**
+ * Fetch tenant profile from Firestore (Parity with Flutter ProfileViewModel)
+ */
+export async function fetchTenantProfile(userId: string, phone?: string): Promise<TenantProfileData | null> {
+  try {
+    let userData: any = null;
+    let tenantId: string | undefined = undefined;
+
+    // 1. Check /users/{userId}
+    try {
+      const userSnap = await getDoc(doc(db, "users", userId));
+      if (userSnap.exists()) {
+        userData = userSnap.data();
+        tenantId = userData.tenantId;
+      }
+    } catch (_) {}
+
+    let tenantData: any = null;
+
+    // 2. If tenantId found, check /tenants/{tenantId}
+    if (tenantId) {
+      try {
+        const tSnap = await getDoc(doc(db, "tenants", tenantId));
+        if (tSnap.exists()) {
+          tenantData = tSnap.data();
+        }
+      } catch (_) {}
+    }
+
+    // 3. If still no tenantData, query tenants collection by userId or phone
+    if (!tenantData) {
+      try {
+        const qByUid = query(collection(db, "tenants"), where("userId", "==", userId), limit(1));
+        const snapUid = await getDocs(qByUid);
+        if (!snapUid.empty) {
+          tenantData = snapUid.docs[0].data();
+          tenantId = snapUid.docs[0].id;
+        } else if (phone) {
+          const cleanPhone = phone.replace(/\D/g, "");
+          const snapAll = await getDocs(collection(db, "tenants"));
+          for (const d of snapAll.docs) {
+            const dat = d.data();
+            const p = (dat.phone || dat.mobileNumber || "").replace(/\D/g, "");
+            if (p && cleanPhone.endsWith(p)) {
+              tenantData = dat;
+              tenantId = d.id;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    const merged = { ...(userData || {}), ...(tenantData || {}) };
+
+    if (!userData && !tenantData) {
+      return null;
+    }
+
+    const dobVal = merged.dateOfBirth;
+    let formattedDob = "";
+    if (dobVal?.toDate) {
+      formattedDob = dobVal.toDate().toISOString().split("T")[0];
+    } else if (typeof dobVal === "string") {
+      formattedDob = dobVal;
+    }
+
+    return {
+      tenantId: tenantId || merged.tenantId,
+      userId: userId,
+      fullName: merged.fullName || merged.name || merged.displayName || "",
+      phone: merged.phone || merged.mobileNumber || phone || "",
+      email: merged.email || "",
+      alternatePhone: merged.alternatePhone || "",
+      emergencyContactName: merged.emergencyContactName || "",
+      emergencyContactPhone: merged.emergencyContactPhone || "",
+      emergencyContactRelation: merged.emergencyContactRelation || "Guardian",
+      officeInstituteName: merged.officeInstituteName || "",
+      officeInstituteId: merged.officeInstituteId || "",
+      nationality: merged.nationality || "Indian",
+      motherTongue: merged.motherTongue || "Hindi",
+      idType: merged.idType || "Aadhar Card Only",
+      idNumber: merged.idNumber || "",
+      gender: merged.gender || "",
+      dateOfBirth: formattedDob,
+      addressLine1: merged.addressLine1 || "",
+      city: merged.city || "",
+      state: merged.state || "",
+      pincode: merged.pincode || "",
+      profileComplete: Boolean(merged.profileComplete || (merged.name && merged.idNumber)),
+      kycVerified: Boolean(merged.kycVerified || merged.idNumber),
+      status: merged.status || "active",
+    };
+  } catch (err) {
+    console.error("Error fetching tenant profile:", err);
+    return null;
+  }
+}
+
+/**
+ * Save / Update tenant profile in Firestore (Parity with Flutter ProfileViewModel.save())
+ */
+export async function saveTenantProfile(userId: string, data: Partial<TenantProfileData>): Promise<void> {
+  try {
+    const isComplete = Boolean(data.fullName && data.phone && data.idNumber);
+
+    const userUpdates: any = {
+      name: data.fullName || "",
+      fullName: data.fullName || "",
+      phone: data.phone || "",
+      mobileNumber: data.phone || "",
+      email: data.email || "",
+      userType: "tenant",
+      profileComplete: isComplete,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (data.tenantId) {
+      userUpdates.tenantId = data.tenantId;
+    }
+
+    await setDoc(doc(db, "users", userId), userUpdates, { merge: true });
+
+    // If tenantId exists, update tenants/{tenantId}
+    if (data.tenantId) {
+      const tenantUpdates: any = {
+        name: data.fullName || "",
+        fullName: data.fullName || "",
+        phone: data.phone || "",
+        mobileNumber: data.phone || "",
+        alternatePhone: data.alternatePhone || "",
+        emergencyContactName: data.emergencyContactName || "",
+        emergencyContactPhone: data.emergencyContactPhone || "",
+        emergencyContactRelation: data.emergencyContactRelation || "Guardian",
+        officeInstituteName: data.officeInstituteName || "",
+        officeInstituteId: data.officeInstituteId || "",
+        nationality: data.nationality || "Indian",
+        motherTongue: data.motherTongue || "Hindi",
+        idType: data.idType || "Aadhar Card Only",
+        idNumber: data.idNumber || "",
+        gender: data.gender || "",
+        addressLine1: data.addressLine1 || "",
+        city: data.city || "",
+        state: data.state || "",
+        pincode: data.pincode || "",
+        profileComplete: isComplete,
+        kycVerified: Boolean(data.idNumber),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "tenants", data.tenantId), tenantUpdates, { merge: true });
+    }
+  } catch (err) {
+    console.error("Error saving tenant profile:", err);
+    throw err;
+  }
+}
+
+/**
+ * Fetch active PG stay or enrollment request for a tenant
+ */
+export async function fetchTenantStay(userId: string, phone?: string): Promise<TenantStayData> {
+  try {
+    // 1. First check tenants collection for an active stay
+    let activeTenantDoc: any = null;
+    let tenantId: string | null = null;
+
+    try {
+      const qUid = query(collection(db, "tenants"), where("userId", "==", userId), limit(1));
+      const snapUid = await getDocs(qUid);
+      if (!snapUid.empty) {
+        activeTenantDoc = snapUid.docs[0].data();
+        tenantId = snapUid.docs[0].id;
+      } else if (phone) {
+        const cleanPhone = phone.replace(/\D/g, "");
+        const allTenants = await getDocs(collection(db, "tenants"));
+        for (const d of allTenants.docs) {
+          const dat = d.data();
+          const p = (dat.phone || dat.mobileNumber || "").replace(/\D/g, "");
+          if (p && cleanPhone.endsWith(p)) {
+            activeTenantDoc = dat;
+            tenantId = d.id;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Check if tenant has an active stay
+    if (activeTenantDoc && activeTenantDoc.status === "active" && activeTenantDoc.propertyId) {
+      // Fetch property details to enrich stay view
+      let propData: any = null;
+      if (activeTenantDoc.businessId && activeTenantDoc.propertyId) {
+        try {
+          const pSnap = await getDoc(doc(db, "businesses", activeTenantDoc.businessId, "properties", activeTenantDoc.propertyId));
+          if (pSnap.exists()) {
+            propData = pSnap.data();
+          }
+        } catch (_) {}
+      }
+
+      return {
+        status: "active",
+        propertyId: activeTenantDoc.propertyId,
+        propertyName: activeTenantDoc.propertyName || propData?.name || "OneStay PG",
+        propertyAddress: propData?.address || "Hinjawadi, Pune",
+        propertyCity: propData?.city || "Pune",
+        propertyImage: propData?.images?.[0] || "",
+        businessId: activeTenantDoc.businessId || "BUS0000001",
+        businessName: propData?.businessName || "OneStay",
+        roomId: activeTenantDoc.roomId || "101",
+        roomNumber: activeTenantDoc.roomNumber || "101",
+        bedId: activeTenantDoc.bedId || "1",
+        bedNumber: activeTenantDoc.bedNumber || "1",
+        monthlyRent: activeTenantDoc.monthlyRent || propData?.pricing?.triple || 7000,
+        depositAmount: propData?.pricing?.securityDeposit || 5000,
+        checkInDate: activeTenantDoc.checkInDate?.toDate ? activeTenantDoc.checkInDate.toDate().toLocaleDateString() : undefined,
+        foodPlan: propData?.foodPlan,
+        amenities: propData?.amenities,
+      };
+    }
+
+    // 2. Check enrollmentRequests for any active or pending request
+    try {
+      const enrSnap = await getDocs(collection(db, "enrollmentRequests"));
+      for (const d of enrSnap.docs) {
+        const dat = d.data();
+        const matchesUser = dat.tenantId === userId || (phone && (dat.tenantPhone || "").includes(phone.slice(-10)));
+        if (matchesUser) {
+          if (dat.status === "confirmed") {
+            return {
+              status: "active",
+              enrollmentRequestId: d.id,
+              propertyId: dat.propertyId,
+              propertyName: dat.propertyName || "Ram Nivas PG",
+              businessId: dat.businessId || "BUS0000001",
+              roomNumber: dat.roomNumber || "101",
+              bedNumber: dat.bedNumber || "1",
+              monthlyRent: dat.monthlyRent || 7000,
+              depositAmount: dat.depositAmount || 5000,
+              checkInDate: dat.moveInDate?.toDate ? dat.moveInDate.toDate().toLocaleDateString() : undefined,
+            };
+          } else if (dat.status === "pending") {
+            return {
+              status: "pending_approval",
+              enrollmentRequestId: d.id,
+              requestStatus: "Under Review by Landlord",
+              propertyId: dat.propertyId,
+              propertyName: dat.propertyName || "Ram Nivas PG",
+              businessId: dat.businessId || "BUS0000001",
+              sharingType: dat.sharingType || 2,
+              monthlyRent: dat.monthlyRent || 9000,
+              depositAmount: dat.depositAmount || 5000,
+              expectedMoveInDate: dat.moveInDate?.toDate ? dat.moveInDate.toDate().toLocaleDateString() : undefined,
+            };
+          }
+        }
+      }
+    } catch (_) {}
+
+    return { status: "none" };
+  } catch (err) {
+    console.error("Error fetching tenant stay:", err);
+    return { status: "none" };
+  }
+}
+
+// ─────────────────────────────────────────────
+// BUSINESS STAFF & MEMBERS SERVICES
+// ─────────────────────────────────────────────
+
+export interface StaffMemberData {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  role: string;
+  status: "active" | "inactive";
+  assignedProperty?: string;
+  propertyId?: string;
+  joinedDate?: string;
+  canCheckIn?: boolean;
+  canCollectCash?: boolean;
+  canLogSubmeters?: boolean;
+  canEditPricing?: boolean;
+}
+
+/**
+ * Fetch staff and members for a business
+ */
+export async function fetchBusinessStaff(businessId: string): Promise<StaffMemberData[]> {
+  const staff: StaffMemberData[] = [];
+  try {
+    const memSnap = await getDocs(collection(db, "businesses", businessId, "members"));
+    memSnap.forEach((d) => {
+      const data = d.data();
+      staff.push({
+        id: d.id,
+        name: data.displayName || data.name || "Staff Member",
+        phone: data.phoneNumber || data.phone || "No Phone",
+        email: data.email || "No Email",
+        role: (data.role || "staff").toUpperCase(),
+        status: data.status === "active" ? "active" : "inactive",
+        assignedProperty: data.propertyName || "All Properties",
+        propertyId: data.propertyId || "ALL",
+        joinedDate: data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "Active",
+        canCheckIn: true,
+        canCollectCash: data.role === "owner" || data.role === "manager",
+        canLogSubmeters: true,
+        canEditPricing: data.role === "owner",
+      });
+    });
+  } catch (err) {
+    console.error("Error fetching business staff:", err);
+  }
+  return staff;
+}
+
+/**
+ * Add a new staff member to business
+ */
+export async function addBusinessStaffMember(businessId: string, member: Partial<StaffMemberData>): Promise<string> {
+  const docRef = await addDoc(collection(db, "businesses", businessId, "members"), {
+    name: member.name,
+    displayName: member.name,
+    phone: member.phone,
+    phoneNumber: member.phone,
+    email: member.email || "",
+    role: (member.role || "staff").toLowerCase(),
+    status: "active",
+    propertyName: member.assignedProperty || "Ram Nivas PG",
+    propertyId: member.propertyId || "BUS0000001PNR001",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+// ─────────────────────────────────────────────
 // SUPER ADMIN SERVICES
 // ─────────────────────────────────────────────
 

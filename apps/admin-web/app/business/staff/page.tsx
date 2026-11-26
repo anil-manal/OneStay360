@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { fetchBusinessStaff, addBusinessStaffMember, fetchBusinessProperties, StaffMemberData, PropertyData } from "@/lib/data-service";
 import {
   Users2,
   Plus,
@@ -17,150 +19,127 @@ import {
   Filter,
 } from "lucide-react";
 
-interface StaffMember {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  role: "PROPERTY_MANAGER" | "WARDEN" | "ACCOUNTANT" | "MAINTENANCE";
-  assignedProperty: string;
-  propertyId: string;
-  status: "active" | "inactive";
-  canCheckIn: boolean;
-  canCollectCash: boolean;
-  canLogSubmeters: boolean;
-  canEditPricing: boolean;
-  joinedDate: string;
-}
-
-const INITIAL_STAFF: StaffMember[] = [
-  {
-    id: "STF_001",
-    name: "Ramesh Patel",
-    phone: "+91 98250 11223",
-    email: "ramesh.p@zololiving.com",
-    role: "WARDEN",
-    assignedProperty: "Zolo CyberPark Premier",
-    propertyId: "PROP_AMD_032",
-    status: "active",
-    canCheckIn: true,
-    canCollectCash: true,
-    canLogSubmeters: true,
-    canEditPricing: false,
-    joinedDate: "15 Jan 2025",
-  },
-  {
-    id: "STF_002",
-    name: "Sanjay Deshmukh",
-    phone: "+91 99220 33445",
-    email: "sanjay.d@zololiving.com",
-    role: "WARDEN",
-    assignedProperty: "Zolo TechZone Luxury",
-    propertyId: "PROP_PNQ_104",
-    status: "active",
-    canCheckIn: true,
-    canCollectCash: true,
-    canLogSubmeters: true,
-    canEditPricing: false,
-    joinedDate: "10 Mar 2025",
-  },
-  {
-    id: "STF_003",
-    name: "Vikram Singhania",
-    phone: "+91 98110 44556",
-    email: "vikram.s@zololiving.com",
-    role: "PROPERTY_MANAGER",
-    assignedProperty: "All Bangalore Properties",
-    propertyId: "ALL_BLR",
-    status: "active",
-    canCheckIn: true,
-    canCollectCash: true,
-    canLogSubmeters: true,
-    canEditPricing: true,
-    joinedDate: "01 Nov 2024",
-  },
-  {
-    id: "STF_004",
-    name: "Anjali Gupta",
-    phone: "+91 98450 66778",
-    email: "finance@zololiving.com",
-    role: "ACCOUNTANT",
-    assignedProperty: "All Properties (Headquarters)",
-    propertyId: "ALL_CHAIN",
-    status: "active",
-    canCheckIn: false,
-    canCollectCash: true,
-    canLogSubmeters: false,
-    canEditPricing: false,
-    joinedDate: "20 Feb 2025",
-  },
-];
-
 export default function BusinessStaffPage() {
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
+  const { user, userProfile } = useAuth();
+  const businessId = userProfile?.businessId || "BUS0000001";
+  const [staff, setStaff] = useState<StaffMemberData[]>([]);
+  const [properties, setProperties] = useState<PropertyData[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Invite state
   const [inviteName, setInviteName] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<StaffMember["role"]>("WARDEN");
-  const [inviteProp, setInviteProp] = useState("Zolo CyberPark Premier");
-  const [canCheckIn, setCanCheckIn] = useState(true);
-  const [canCollectCash, setCanCollectCash] = useState(true);
-  const [canLogSubmeters, setCanLogSubmeters] = useState(true);
-  const [canEditPricing, setCanEditPricing] = useState(false);
+  const [inviteRole, setInviteRole] = useState("WARDEN");
+  const [inviteProp, setInviteProp] = useState("");
+
+  useEffect(() => {
+    async function loadStaffData() {
+      try {
+        setLoading(true);
+        const [staffList, propsList] = await Promise.all([
+          fetchBusinessStaff(businessId),
+          fetchBusinessProperties(businessId),
+        ]);
+        setStaff(staffList);
+        setProperties(propsList);
+        if (propsList.length > 0) {
+          setInviteProp(propsList[0].name);
+        }
+      } catch (err) {
+        console.error("Error loading business staff:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadStaffData();
+  }, [businessId]);
 
   const filteredStaff = staff.filter((s) => {
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.phone.includes(searchQuery) ||
-      s.assignedProperty.toLowerCase().includes(searchQuery.toLowerCase());
+      (s.assignedProperty || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === "all" || s.role === roleFilter;
     return matchesSearch && matchesRole;
   });
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
+  const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteName || !invitePhone) return;
+    if (!inviteName.trim() || !invitePhone.trim()) return;
 
-    const newStaff: StaffMember = {
-      id: `STF_${Math.floor(100 + Math.random() * 900)}`,
-      name: inviteName,
-      phone: invitePhone,
-      email: inviteEmail || `${inviteName.toLowerCase().replace(/\s+/g, ".")}@zololiving.com`,
-      role: inviteRole,
-      assignedProperty: inviteProp,
-      propertyId: "PROP_CUSTOM",
-      status: "active",
-      canCheckIn,
-      canCollectCash,
-      canLogSubmeters,
-      canEditPricing,
-      joinedDate: "Today",
-    };
+    try {
+      setSubmitting(true);
+      const newStaffItem: Partial<StaffMemberData> = {
+        name: inviteName.trim(),
+        phone: invitePhone.trim(),
+        email: inviteEmail.trim(),
+        role: inviteRole,
+        assignedProperty: inviteProp || properties[0]?.name || "Ram Nivas PG",
+        propertyId: properties[0]?.id || "BUS0000001PNR001",
+        status: "active",
+      };
 
-    setStaff([newStaff, ...staff]);
-    setIsInviteModalOpen(false);
-    setInviteName("");
-    setInvitePhone("");
-    setInviteEmail("");
+      const docId = await addBusinessStaffMember(businessId, newStaffItem);
+      setStaff([
+        {
+          id: docId,
+          name: newStaffItem.name!,
+          phone: newStaffItem.phone!,
+          email: newStaffItem.email || "No Email",
+          role: newStaffItem.role!,
+          assignedProperty: newStaffItem.assignedProperty,
+          status: "active",
+          canCheckIn: true,
+          canCollectCash: newStaffItem.role === "OWNER" || newStaffItem.role === "MANAGER",
+          canLogSubmeters: true,
+          canEditPricing: newStaffItem.role === "OWNER",
+          joinedDate: "Today",
+        },
+        ...staff,
+      ]);
+
+      setIsInviteModalOpen(false);
+      setInviteName("");
+      setInvitePhone("");
+      setInviteEmail("");
+    } catch (err: any) {
+      alert("Failed to add staff member: " + err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const getRoleBadge = (role: StaffMember["role"]) => {
-    switch (role) {
+  const getRoleBadge = (role: string) => {
+    switch (role.toUpperCase()) {
+      case "OWNER":
+        return { label: "Business Owner", bg: "#FEF3C7", text: "#D97706" };
+      case "MANAGER":
       case "PROPERTY_MANAGER":
         return { label: "Property Manager", bg: "#EEF2FF", text: "#4F46E5" };
       case "WARDEN":
         return { label: "On-Site Warden", bg: "#ECFDF5", text: "#059669" };
       case "ACCOUNTANT":
         return { label: "Accountant", bg: "#FEF3C7", text: "#D97706" };
-      case "MAINTENANCE":
-        return { label: "Maintenance", bg: "#F1F5F9", text: "#475569" };
+      default:
+        return { label: role, bg: "#F1F5F9", text: "#475569" };
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+        <div style={{ width: "36px", height: "36px", border: "3px solid #E2E8F0", borderTopColor: "var(--teal-primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <p style={{ color: "#64748B", fontSize: "14px", fontWeight: 600 }}>Loading Staff &amp; Operational Team...</p>
+        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", paddingBottom: "60px" }}>
@@ -171,6 +150,8 @@ export default function BusinessStaffPage() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           marginBottom: "28px",
+          flexWrap: "wrap",
+          gap: "16px",
         }}
       >
         <div>
@@ -179,562 +160,337 @@ export default function BusinessStaffPage() {
               style={{
                 fontSize: "12px",
                 fontWeight: 700,
-                color: "#059669",
-                background: "#ECFDF5",
+                color: "var(--teal-primary)",
+                background: "rgba(13, 148, 136, 0.1)",
                 padding: "2px 8px",
                 borderRadius: "6px",
+                textTransform: "uppercase",
               }}
             >
-              TEAM & DELEGATION
+              Enterprise Governance
             </span>
-            <span style={{ fontSize: "12px", color: "#64748B" }}>RBAC Access Control</span>
           </div>
-          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px", margin: 0 }}>
-            Staff & Wardens
+          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
+            Staff &amp; Wardens Directory
           </h1>
           <p style={{ fontSize: "14px", color: "#64748B", margin: "4px 0 0 0" }}>
-            Delegate day-to-day PG management, tenant check-in approvals, submeter logging, and cash collection.
+            Role-based operational access control for on-site wardens and property managers.
           </p>
         </div>
 
         <button
           onClick={() => setIsInviteModalOpen(true)}
+          className="btnPrimary"
           style={{
             display: "flex",
             alignItems: "center",
             gap: "8px",
             padding: "10px 18px",
-            background: "#059669",
-            color: "#FFFFFF",
-            border: "none",
             borderRadius: "10px",
+            fontSize: "14px",
             fontWeight: 700,
-            fontSize: "13px",
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(5,150,105,0.2)",
           }}
         >
-          <Plus size={16} /> Invite Staff Member
+          <Plus size={18} /> Add Staff Member
         </button>
       </div>
 
-      {/* Aggregate Overview Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "16px",
-          marginBottom: "28px",
-        }}
-      >
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #E2E8F0",
-            borderRadius: "14px",
-            padding: "20px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Active Personnel
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: 900, color: "#0F172A", marginTop: "6px" }}>
-            {staff.filter((s) => s.status === "active").length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#059669", marginTop: "4px" }}>All 100% verified & active</div>
-        </div>
-
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #E2E8F0",
-            borderRadius: "14px",
-            padding: "20px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#059669", textTransform: "uppercase" }}>
-            On-Site Wardens
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: 900, color: "#059669", marginTop: "6px" }}>
-            {staff.filter((s) => s.role === "WARDEN").length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
-            Managing daily bed allocation & meters
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #E2E8F0",
-            borderRadius: "14px",
-            padding: "20px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Property Managers
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: 900, color: "#2563EB", marginTop: "6px" }}>
-            {staff.filter((s) => s.role === "PROPERTY_MANAGER").length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>Full branch operational authority</div>
-        </div>
-
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: "1px solid #E2E8F0",
-            borderRadius: "14px",
-            padding: "20px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Cash Recorders
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: 900, color: "#D97706", marginTop: "6px" }}>
-            {staff.filter((s) => s.canCollectCash).length}
-          </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>Authorized to accept cash receipts</div>
-        </div>
-      </div>
-
-      {/* Filter and Search */}
+      {/* Filters Bar */}
       <div
         style={{
           background: "#FFFFFF",
           border: "1px solid #E2E8F0",
-          borderRadius: "14px",
-          padding: "16px 20px",
-          marginBottom: "20px",
+          borderRadius: "12px",
+          padding: "14px 18px",
+          marginBottom: "24px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: "12px",
+          gap: "14px",
         }}
       >
-        <div style={{ position: "relative", flex: 1, maxWidth: "360px" }}>
-          <Search
-            size={16}
-            color="#94A3B8"
-            style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "260px" }}>
+          <Search size={18} color="#94A3B8" />
           <input
             type="text"
-            placeholder="Search staff by name, phone, property..."
+            placeholder="Search staff by name, phone, or assigned property..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              width: "100%",
-              padding: "8px 12px 8px 36px",
-              border: "1px solid #CBD5E1",
-              borderRadius: "8px",
-              fontSize: "13px",
+              border: "none",
               outline: "none",
+              width: "100%",
+              fontSize: "14px",
+              color: "#0F172A",
             }}
           />
         </div>
 
-        <div style={{ display: "flex", gap: "6px" }}>
-          {["all", "WARDEN", "PROPERTY_MANAGER", "ACCOUNTANT"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setRoleFilter(r)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "8px",
-                fontSize: "12px",
-                fontWeight: 700,
-                border: roleFilter === r ? "1px solid #059669" : "1px solid #E2E8F0",
-                background: roleFilter === r ? "#ECFDF5" : "#FFFFFF",
-                color: roleFilter === r ? "#059669" : "#64748B",
-                cursor: "pointer",
-              }}
-            >
-              {r === "all" ? "All Roles" : r.replace("_", " ")}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <Filter size={16} color="#64748B" />
+          <span style={{ fontSize: "13px", color: "#64748B", fontWeight: 600 }}>Role:</span>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "8px",
+              border: "1px solid #CBD5E1",
+              fontSize: "13px",
+              fontWeight: 600,
+              background: "#FFFFFF",
+            }}
+          >
+            <option value="all">All Roles</option>
+            <option value="OWNER">Owner</option>
+            <option value="MANAGER">Property Manager</option>
+            <option value="WARDEN">Warden</option>
+            <option value="ACCOUNTANT">Accountant</option>
+          </select>
         </div>
       </div>
 
-      {/* Staff Table */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          border: "1px solid #E2E8F0",
-          borderRadius: "14px",
-          overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-        }}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
-          <thead>
-            <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", color: "#64748B" }}>
-              <th style={{ padding: "14px 18px", fontWeight: 700 }}>Staff Member</th>
-              <th style={{ padding: "14px 18px", fontWeight: 700 }}>Role</th>
-              <th style={{ padding: "14px 18px", fontWeight: 700 }}>Assigned Property</th>
-              <th style={{ padding: "14px 18px", fontWeight: 700 }}>Operational Permissions</th>
-              <th style={{ padding: "14px 18px", fontWeight: 700 }}>Status</th>
-              <th style={{ padding: "14px 18px", fontWeight: 700, textAlign: "right" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredStaff.map((member) => {
-              const roleBadge = getRoleBadge(member.role);
-              return (
-                <tr key={member.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                  <td style={{ padding: "14px 18px" }}>
-                    <div style={{ fontWeight: 700, color: "#0F172A" }}>{member.name}</div>
-                    <div style={{ fontSize: "12px", color: "#64748B", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <Phone size={11} color="#94A3B8" /> {member.phone}
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 18px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        background: roleBadge.bg,
-                        color: roleBadge.text,
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      {roleBadge.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 18px" }}>
-                    <div style={{ fontWeight: 600, color: "#334155" }}>{member.assignedProperty}</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>Joined: {member.joinedDate}</div>
-                  </td>
-                  <td style={{ padding: "14px 18px" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {member.canCheckIn && (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            background: "#F1F5F9",
-                            color: "#334155",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          Check-in / Out
-                        </span>
-                      )}
-                      {member.canLogSubmeters && (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            background: "#FEF3C7",
-                            color: "#92400E",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          Submeters
-                        </span>
-                      )}
-                      {member.canCollectCash && (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            background: "#DCFCE7",
-                            color: "#166534",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          Cash Rec
-                        </span>
-                      )}
-                      {member.canEditPricing && (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            background: "#EDE9FE",
-                            color: "#5B21B6",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          Pricing Edit
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ padding: "14px 18px" }}>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "#16A34A",
-                        background: "#DCFCE7",
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      <CheckCircle2 size={12} /> ACTIVE
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                    <button
-                      onClick={() => alert(`Permissions modal opened for ${member.name}`)}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "6px",
-                        border: "1px solid #CBD5E1",
-                        background: "#FFFFFF",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#334155",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Edit Access
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Invite Staff Modal */}
-      {isInviteModalOpen && (
+      {/* Staff Grid or Clean Empty State */}
+      {filteredStaff.length === 0 ? (
         <div
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: "20px",
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "16px",
+            padding: "48px 24px",
+            textAlign: "center",
           }}
         >
           <div
             style={{
-              background: "#FFFFFF",
-              borderRadius: "16px",
-              padding: "28px",
-              maxWidth: "520px",
-              width: "100%",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+              width: "60px",
+              height: "60px",
+              borderRadius: "50%",
+              background: "#F8FAFC",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px auto",
+              border: "1px dashed #CBD5E1",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+            <Users2 size={28} color="#94A3B8" />
+          </div>
+          <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
+            No Staff Members Assigned Yet
+          </h3>
+          <p style={{ fontSize: "14px", color: "#64748B", margin: "8px auto 20px auto", maxWidth: "460px" }}>
+            Assign on-site wardens or property managers to Ram Nivas PG to delegate check-ins, record electricity submeter readings, and monitor resident requests.
+          </p>
+          <button
+            onClick={() => setIsInviteModalOpen(true)}
+            className="btnPrimary"
+            style={{ padding: "10px 20px", borderRadius: "8px", fontSize: "14px", fontWeight: 700 }}
+          >
+            <Plus size={16} /> Add First Staff Member
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+            gap: "20px",
+          }}
+        >
+          {filteredStaff.map((member) => {
+            const badge = getRoleBadge(member.role);
+            return (
               <div
+                key={member.id}
                 style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "10px",
-                  background: "#ECFDF5",
+                  background: "#FFFFFF",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "16px",
+                  padding: "22px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#059669",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
                 }}
               >
-                <Users2 size={22} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
-                  Invite Staff / Warden
-                </h3>
-                <div style={{ fontSize: "12px", color: "#64748B" }}>
-                  They will receive an SMS invitation with one-time login credentials
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <div
+                        style={{
+                          width: "44px",
+                          height: "44px",
+                          borderRadius: "12px",
+                          background: "#F1F5F9",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          fontSize: "16px",
+                          color: "#334155",
+                        }}
+                      >
+                        {member.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0F172A" }}>
+                          {member.name}
+                        </h3>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            background: badge.bg,
+                            color: badge.text,
+                            marginTop: "3px",
+                          }}
+                        >
+                          {badge.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        background: member.status === "active" ? "#DCFCE7" : "#F1F5F9",
+                        color: member.status === "active" ? "#166534" : "#64748B",
+                      }}
+                    >
+                      {member.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#475569", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Phone size={14} color="#94A3B8" /> {member.phone}
+                    </div>
+                    {member.email && member.email !== "No Email" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <Mail size={14} color="#94A3B8" /> {member.email}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <Building2 size={14} color="#94A3B8" /> {member.assignedProperty || "All Properties"}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderTop: "1px solid #F1F5F9",
+                    paddingTop: "14px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "12px",
+                    color: "#64748B",
+                  }}
+                >
+                  <span>Joined: {member.joinedDate || "Active"}</span>
+                  <span style={{ fontWeight: 600, color: "var(--teal-primary)" }}>Active Permissions</span>
                 </div>
               </div>
-            </div>
+            );
+          })}
+        </div>
+      )}
 
-            <form onSubmit={handleInviteSubmit}>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Full Name *
-                </label>
+      {/* Invite Modal */}
+      {isInviteModalOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 100 }}>
+          <div style={{ background: "#FFFFFF", borderRadius: "16px", padding: "28px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+            <h3 style={{ fontSize: "18px", fontWeight: 800, margin: "0 0 16px 0", color: "#0F172A" }}>Add Staff Member</h3>
+            <form onSubmit={handleInviteSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Full Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Anand Shinde"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    border: "1px solid #CBD5E1",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    outline: "none",
-                  }}
+                  placeholder="e.g. Ramesh Patil"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Mobile Phone (+91) *</label>
+                <input
+                  type="text"
+                  required
+                  value={invitePhone}
+                  onChange={(e) => setInvitePhone(e.target.value)}
+                  placeholder="+91 98XXX XXXXX"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Email ID (Optional)</label>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+91 98XXX XXXXX"
-                    value={invitePhone}
-                    onChange={(e) => setInvitePhone(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                    }}
-                  />
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px", background: "#FFFFFF" }}
+                  >
+                    <option value="WARDEN">On-Site Warden</option>
+                    <option value="MANAGER">Property Manager</option>
+                    <option value="ACCOUNTANT">Accountant</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Role *
-                  </label>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Assigned Property</label>
                   <select
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as StaffMember["role"])}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                      background: "#FFFFFF",
-                    }}
+                    value={inviteProp}
+                    onChange={(e) => setInviteProp(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px", background: "#FFFFFF" }}
                   >
-                    <option value="WARDEN">On-Site Warden</option>
-                    <option value="PROPERTY_MANAGER">Property Manager</option>
-                    <option value="ACCOUNTANT">Accountant</option>
-                    <option value="MAINTENANCE">Maintenance Supervisor</option>
+                    {properties.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                    {properties.length === 0 && <option value="Ram Nivas PG">Ram Nivas PG</option>}
                   </select>
                 </div>
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Assigned Property Branch *
-                </label>
-                <select
-                  value={inviteProp}
-                  onChange={(e) => setInviteProp(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    border: "1px solid #CBD5E1",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    outline: "none",
-                    background: "#FFFFFF",
-                  }}
-                >
-                  <option value="Zolo CyberPark Premier">Zolo CyberPark Premier (Ahmedabad)</option>
-                  <option value="Zolo TechZone Luxury">Zolo TechZone Luxury (Pune)</option>
-                  <option value="Zolo Nexus Hive">Zolo Nexus Hive (Bangalore)</option>
-                  <option value="Zolo Silicon Heights">Zolo Silicon Heights (Hyderabad)</option>
-                </select>
-              </div>
-
-              {/* Permissions Checkboxes */}
-              <div
-                style={{
-                  background: "#F8FAFC",
-                  border: "1px solid #E2E8F0",
-                  borderRadius: "10px",
-                  padding: "14px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "10px" }}>
-                  Access Permissions
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                    <input
-                      type="checkbox"
-                      checked={canCheckIn}
-                      onChange={(e) => setCanCheckIn(e.target.checked)}
-                    />
-                    Check-in / Check-out
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                    <input
-                      type="checkbox"
-                      checked={canLogSubmeters}
-                      onChange={(e) => setCanLogSubmeters(e.target.checked)}
-                    />
-                    Submeter Logging
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                    <input
-                      type="checkbox"
-                      checked={canCollectCash}
-                      onChange={(e) => setCanCollectCash(e.target.checked)}
-                    />
-                    Collect Cash Receipts
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#475569" }}>
-                    <input
-                      type="checkbox"
-                      checked={canEditPricing}
-                      onChange={(e) => setCanEditPricing(e.target.checked)}
-                    />
-                    Edit Bed Rates
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "12px" }}>
                 <button
                   type="button"
                   onClick={() => setIsInviteModalOpen(false)}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: "8px",
-                    border: "1px solid #CBD5E1",
-                    background: "#FFFFFF",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#64748B",
-                    cursor: "pointer",
-                  }}
+                  style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#64748B", fontWeight: 600, fontSize: "13px" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#059669",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#FFFFFF",
-                    cursor: "pointer",
-                  }}
+                  disabled={submitting}
+                  className="btnPrimary"
+                  style={{ padding: "8px 18px", borderRadius: "8px", fontWeight: 700, fontSize: "13px" }}
                 >
-                  Send Invitation
+                  {submitting ? "Adding..." : "Confirm & Add"}
                 </button>
               </div>
             </form>

@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import { fetchTenantProfile, saveTenantProfile, TenantProfileData } from "@/lib/data-service";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -21,149 +23,189 @@ import {
   Lock,
   Download,
   Share2,
+  Edit3,
 } from "lucide-react";
 
-interface PassportProfile {
-  passportId: string;
-  fullName: string;
-  dob: string;
-  gender: string;
-  maskedAadhaar: string;
-  aadhaarHash: string;
-  permanentAddress: {
-    line1: string;
-    city: string;
-    state: string;
-    pincode: string;
-  };
-  emergencyContact: {
-    name: string;
-    relationship: string;
-    phone: string;
-    verified: boolean;
-  };
-  affiliation: {
-    type: "student" | "professional";
-    organization: string;
-    workEmail?: string;
-    verified: boolean;
-  };
-  kycVerifiedAt: string;
-  status: "verified" | "pending" | "defaulter_alert";
-  trustScore: number;
-}
-
-const DEFAULT_VERIFIED_PASSPORT: PassportProfile = {
-  passportId: "OS360-PASS-PNQ-78291",
-  fullName: "Anil Kumar Manal",
-  dob: "14-08-1999",
-  gender: "Male",
-  maskedAadhaar: "XXXX-XXXX-8921",
-  aadhaarHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  permanentAddress: {
-    line1: "Flat 402, Shanti Kunj Apartments, Baner Road",
-    city: "Pune",
-    state: "Maharashtra",
-    pincode: "411045",
-  },
-  emergencyContact: {
-    name: "Rameshwar Manal",
-    relationship: "Father",
-    phone: "+91 94220 12345",
-    verified: true,
-  },
-  affiliation: {
-    type: "professional",
-    organization: "Tata Consultancy Services (TCS Pune)",
-    workEmail: "anil.manal@tcs.com",
-    verified: true,
-  },
-  kycVerifiedAt: "24 Nov 2026, 11:30 AM",
-  status: "verified",
-  trustScore: 98,
-};
-
 export default function TenantPassportPage() {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(4); // Default to verified view with toggle to re-test flow
+  const { user, userProfile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<TenantProfileData | null>(null);
+
+  // Step state: 1 (Aadhaar/Identity), 2 (Emergency/Guardian), 3 (Affiliation/Work), 4 (Issued Passport View)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(4);
   const [kycMethod, setKycMethod] = useState<"digilocker" | "ocr">("digilocker");
   const [verifying, setVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [aadhaarInput, setAadhaarInput] = useState("5829 4819 8921");
-  const [otpInput, setOtpInput] = useState("");
   const [selectedPoliceState, setSelectedPoliceState] = useState<"Maharashtra" | "Karnataka" | "Delhi">("Maharashtra");
-  const [passport, setPassport] = useState<PassportProfile>(DEFAULT_VERIFIED_PASSPORT);
 
-  // Emergency contact state
-  const [emergencyName, setEmergencyName] = useState(passport.emergencyContact.name);
-  const [emergencyPhone, setEmergencyPhone] = useState(passport.emergencyContact.phone);
-  const [emergencyRelation, setEmergencyRelation] = useState(passport.emergencyContact.relationship);
+  // Form states
+  const [fullNameInput, setFullNameInput] = useState("");
+  const [aadhaarInput, setAadhaarInput] = useState("");
+  const [dobInput, setDobInput] = useState("");
+  const [genderInput, setGenderInput] = useState("Male");
+  const [addressLineInput, setAddressLineInput] = useState("");
+  const [cityInput, setCityInput] = useState("");
+  const [stateInput, setStateInput] = useState("");
+  const [pincodeInput, setPincodeInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
 
-  // Affiliation state
-  const [affilType, setAffilType] = useState<"student" | "professional">(passport.affiliation.type);
-  const [affilOrg, setAffilOrg] = useState(passport.affiliation.organization);
-  const [workEmail, setWorkEmail] = useState(passport.affiliation.workEmail || "");
+  const [emergencyName, setEmergencyName] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [emergencyRelation, setEmergencyRelation] = useState("Father");
+
+  const [affilType, setAffilType] = useState<"student" | "professional">("professional");
+  const [affilOrg, setAffilOrg] = useState("");
+  const [affilId, setAffilId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadData() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const data = await fetchTenantProfile(user.uid, user.phoneNumber || undefined);
+        if (data) {
+          setProfile(data);
+          setFullNameInput(data.fullName || userProfile?.displayName || user.displayName || "");
+          setAadhaarInput(data.idNumber || "");
+          setDobInput(data.dateOfBirth || "");
+          setGenderInput(data.gender || "Male");
+          setAddressLineInput(data.addressLine1 || "");
+          setCityInput(data.city || "");
+          setStateInput(data.state || "");
+          setPincodeInput(data.pincode || "");
+          setEmergencyName(data.emergencyContactName || "");
+          setEmergencyPhone(data.emergencyContactPhone || "");
+          setEmergencyRelation(data.emergencyContactRelation || "Father");
+          setAffilOrg(data.officeInstituteName || "");
+          setAffilId(data.officeInstituteId || "");
+
+          // If tenant hasn't completed KYC or entered an ID, start on Step 1
+          if (!data.idNumber && !data.profileComplete) {
+            setStep(1);
+          } else {
+            setStep(4);
+          }
+        } else {
+          // New profile
+          setFullNameInput(userProfile?.displayName || user.displayName || "");
+          setStep(1);
+        }
+      } catch (err) {
+        console.error("Error loading tenant passport:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [user, userProfile]);
 
   const handleSendAadhaarOtp = async () => {
-    if (aadhaarInput.replace(/\s/g, "").length < 12) {
-      alert("Please enter a valid 12-digit Aadhaar Number.");
+    if (aadhaarInput.replace(/\s/g, "").length < 10) {
+      alert("Please enter a valid Government ID or Aadhaar Number.");
       return;
     }
     setVerifying(true);
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 800));
     setVerifying(false);
     setOtpSent(true);
   };
 
   const handleVerifyAadhaarOtp = async () => {
-    if (otpInput.length < 6) {
-      alert("Please enter the 6-digit OTP sent to your Aadhaar-registered mobile.");
+    if (otpInput.length < 4) {
+      alert("Please enter the 4 or 6 digit verification OTP sent to your phone.");
       return;
     }
     setVerifying(true);
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 800));
     setVerifying(false);
     setStep(2);
   };
 
   const handleCompleteStep2 = () => {
-    if (!emergencyName || !emergencyPhone) {
-      alert("Please enter emergency contact name and phone.");
+    if (!emergencyName.trim() || !emergencyPhone.trim()) {
+      alert("Please enter emergency contact name and phone number.");
       return;
     }
     setStep(3);
   };
 
-  const handleCompleteStep3 = () => {
-    if (!affilOrg) {
-      alert("Please enter your organization or university name.");
+  const handleCompleteStep3 = async () => {
+    if (!user) {
+      alert("Please sign in to save your passport details.");
       return;
     }
-    const updated: PassportProfile = {
-      ...passport,
-      emergencyContact: {
-        name: emergencyName,
-        relationship: emergencyRelation,
-        phone: emergencyPhone,
-        verified: true,
-      },
-      affiliation: {
-        type: affilType,
-        organization: affilOrg,
-        workEmail,
-        verified: true,
-      },
-      kycVerifiedAt: new Date().toLocaleDateString("en-IN", { dateStyle: "medium" }),
-      status: "verified",
-    };
-    setPassport(updated);
-    setStep(4);
+    try {
+      setSaving(true);
+      const updatedData: Partial<TenantProfileData> = {
+        fullName: fullNameInput.trim(),
+        phone: user.phoneNumber || profile?.phone || "",
+        email: user.email || profile?.email || "",
+        idType: "Aadhar Card",
+        idNumber: aadhaarInput.trim(),
+        dateOfBirth: dobInput,
+        gender: genderInput,
+        addressLine1: addressLineInput.trim(),
+        city: cityInput.trim(),
+        state: stateInput.trim() || "Maharashtra",
+        pincode: pincodeInput.trim(),
+        emergencyContactName: emergencyName.trim(),
+        emergencyContactPhone: emergencyPhone.trim(),
+        emergencyContactRelation: emergencyRelation,
+        officeInstituteName: affilOrg.trim(),
+        officeInstituteId: affilId.trim(),
+        profileComplete: true,
+        kycVerified: true,
+      };
+
+      await saveTenantProfile(user.uid, updatedData);
+      setProfile({
+        ...(profile || {
+          fullName: fullNameInput,
+          phone: user.phoneNumber || "",
+          email: user.email || "",
+          profileComplete: true,
+          kycVerified: true,
+        }),
+        ...updatedData,
+      } as TenantProfileData);
+
+      setStep(4);
+    } catch (err: any) {
+      alert("Failed to save profile: " + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "80vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+        <div style={{ width: "36px", height: "36px", border: "3px solid #E2E8F0", borderTopColor: "var(--teal-primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <p style={{ color: "#64748B", fontSize: "14px", fontWeight: 600 }}>Loading Resident Passport from Secure Vault...</p>
+        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  const displayName = profile?.fullName || userProfile?.displayName || user?.displayName || user?.phoneNumber || "Resident";
+  const maskedAadhaar = profile?.idNumber ? `XXXX-XXXX-${profile.idNumber.slice(-4)}` : "Not Provided";
+  const formattedDob = profile?.dateOfBirth || "Not Provided";
+  const gender = profile?.gender || "Not Provided";
+  const affiliation = profile?.officeInstituteName || "Not Provided";
+  const addressFormatted = [profile?.addressLine1, profile?.city, profile?.state, profile?.pincode].filter(Boolean).join(", ") || "Address not provided";
+  const emergencyInfo = profile?.emergencyContactName ? `${profile.emergencyContactName} (${profile.emergencyContactRelation || "Guardian"}) • ${profile.emergencyContactPhone || ""}` : "Not Provided";
+  const passportId = profile?.tenantId ? `OS360-PASS-${profile.tenantId.toUpperCase()}` : `OS360-PASS-${user?.uid.slice(0, 8).toUpperCase() || "PENDING"}`;
+  const isKycComplete = Boolean(profile?.idNumber && profile?.profileComplete);
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", color: "#0F172A", padding: "32px 20px", fontFamily: "var(--font-sans)" }}>
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
         {/* Top Navigation */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div
               style={{
@@ -198,16 +240,16 @@ export default function TenantPassportPage() {
                   borderRadius: "8px",
                   border: "1px solid #CBD5E1",
                   background: "#FFFFFF",
-                  color: "#475569",
                   fontSize: "12px",
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  color: "#475569",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
                 }}
               >
-                <RefreshCw size={14} /> Re-verify / Update KYC
+                <Edit3 size={14} /> Edit KYC Information
               </button>
             ) : (
               <button
@@ -215,236 +257,240 @@ export default function TenantPassportPage() {
                 style={{
                   padding: "8px 14px",
                   borderRadius: "8px",
-                  border: "1px solid var(--teal-primary)",
-                  background: "rgba(13, 148, 136, 0.08)",
-                  color: "var(--teal-primary)",
+                  border: "1px solid #CBD5E1",
+                  background: "#FFFFFF",
                   fontSize: "12px",
                   fontWeight: 700,
+                  color: "#475569",
                   cursor: "pointer",
                 }}
               >
-                View Existing Passport &rarr;
+                View Current Passport Card
               </button>
             )}
           </div>
         </div>
 
-        {/* STEPPER BAR */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "16px 24px", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-            {[
-              { num: 1, label: "Aadhaar DigiLocker", desc: "UIDAI e-KYC" },
-              { num: 2, label: "Parent / Emergency", desc: "SMS OTP Verified" },
-              { num: 3, label: "Company / College", desc: "Trust Accelerator" },
-              { num: 4, label: "Resident Passport", desc: "Ready to Move-In" },
-            ].map((s) => {
-              const isDone = s.num < step || (step === 4 && s.num === 4);
-              const isActive = s.num === step;
-              return (
-                <div key={s.num} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      background: isDone ? "#059669" : isActive ? "var(--teal-primary)" : "#F1F5F9",
-                      color: isDone || isActive ? "#FFFFFF" : "#64748B",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 800,
-                      fontSize: "13px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {isDone && s.num !== step ? <CheckCircle2 size={16} /> : s.num}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: isActive ? 800 : 600, color: isActive ? "#0F172A" : "#64748B" }}>
-                      {s.label}
-                    </div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>{s.desc}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* STEP 1: AADHAAR OKYC */}
-        {step === 1 && (
-          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+        {/* KYC Incomplete Banner */}
+        {!isKycComplete && step === 4 && (
+          <div
+            style={{
+              background: "#FFFBEB",
+              border: "1px solid #FDE68A",
+              borderRadius: "12px",
+              padding: "16px 20px",
+              marginBottom: "24px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertTriangle size={20} color="#D97706" />
               <div>
-                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
-                  Step 1 of 3: Primary Government Identity
-                </span>
-                <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 6px 0", color: "#0F172A" }}>
-                  Aadhaar Verification via DigiLocker / UIDAI
-                </h2>
-                <p style={{ fontSize: "13px", color: "#64748B", margin: 0, maxWidth: "600px" }}>
-                  OneStay360 fetches your official verified name, DOB, photograph, and permanent address directly from UIDAI. Raw Aadhaar numbers are never stored in plaintext.
+                <strong style={{ fontSize: "14px", color: "#92400E" }}>Profile &amp; KYC Incomplete</strong>
+                <p style={{ fontSize: "12px", color: "#B45309", margin: "2px 0 0 0" }}>
+                  Only actual verified details submitted by you are displayed. Please complete all statutory fields to unlock full digital check-in.
                 </p>
               </div>
-
-              {/* Mode Toggle */}
-              <div style={{ display: "flex", background: "#F1F5F9", padding: "4px", borderRadius: "8px" }}>
-                <button
-                  onClick={() => setKycMethod("digilocker")}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: kycMethod === "digilocker" ? "#FFFFFF" : "transparent",
-                    color: kycMethod === "digilocker" ? "var(--teal-primary)" : "#64748B",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    cursor: "pointer",
-                    boxShadow: kycMethod === "digilocker" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
-                  }}
-                >
-                  DigiLocker OTP (Fastest)
-                </button>
-                <button
-                  onClick={() => setKycMethod("ocr")}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: kycMethod === "ocr" ? "#FFFFFF" : "transparent",
-                    color: kycMethod === "ocr" ? "var(--teal-primary)" : "#64748B",
-                    fontWeight: 700,
-                    fontSize: "12px",
-                    cursor: "pointer",
-                    boxShadow: kycMethod === "ocr" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
-                  }}
-                >
-                  ID Photo + Selfie Match
-                </button>
-              </div>
             </div>
+            <button
+              onClick={() => setStep(1)}
+              style={{
+                background: "#D97706",
+                color: "#FFFFFF",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Complete Now
+            </button>
+          </div>
+        )}
 
-            {kycMethod === "digilocker" ? (
-              <div style={{ maxWidth: "480px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        {/* STEP 1: AADHAAR & DIGILOCKER */}
+        {step === 1 && (
+          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
+              Step 1 of 3: Statutory Identity
+            </span>
+            <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 6px 0", color: "#0F172A" }}>
+              Government ID &amp; Address Verification
+            </h2>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 24px 0", maxWidth: "600px" }}>
+              Only actual verified values will be saved to your resident profile and used for police verification.
+            </p>
+
+            <div style={{ maxWidth: "520px", display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                  Full Legal Name (as per Govt ID) *
+                </label>
+                <input
+                  type="text"
+                  value={fullNameInput}
+                  onChange={(e) => setFullNameInput(e.target.value)}
+                  placeholder="Enter your full legal name"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    12-Digit Aadhaar Number
+                    Date of Birth
                   </label>
+                  <input
+                    type="date"
+                    value={dobInput}
+                    onChange={(e) => setDobInput(e.target.value)}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                    Gender
+                  </label>
+                  <select
+                    value={genderInput}
+                    onChange={(e) => setGenderInput(e.target.value)}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px", background: "#FFFFFF" }}
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                  Aadhaar / Government ID Number *
+                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
                   <input
                     type="text"
                     value={aadhaarInput}
                     onChange={(e) => setAadhaarInput(e.target.value)}
-                    placeholder="XXXX XXXX XXXX"
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      borderRadius: "10px",
-                      border: "1px solid #CBD5E1",
-                      fontSize: "16px",
-                      fontFamily: "monospace",
-                      fontWeight: 600,
-                      color: "#0F172A",
-                    }}
+                    placeholder="Enter 12-digit Aadhaar Number"
+                    style={{ flex: 1, padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px", letterSpacing: "1px" }}
                   />
-                  <span style={{ fontSize: "11px", color: "#64748B", marginTop: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <Lock size={12} /> Encrypted via Cashfree UIDAI Verification Gateway
-                  </span>
-                </div>
-
-                {!otpSent ? (
                   <button
                     onClick={handleSendAadhaarOtp}
                     disabled={verifying}
                     className="btnPrimary"
-                    style={{
-                      padding: "12px 20px",
-                      borderRadius: "10px",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                      cursor: verifying ? "not-allowed" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                    }}
+                    style={{ padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap" }}
                   >
-                    {verifying ? "Generating UIDAI OTP..." : "Request Aadhaar OTP &rarr;"}
+                    {verifying ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
                   </button>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "4px" }}>
-                    <div style={{ padding: "10px 14px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "8px", color: "#065F46", fontSize: "12px", fontWeight: 600 }}>
-                      ✅ 6-digit OTP dispatched to mobile linked with Aadhaar ending in ...8921
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                        Enter 6-Digit OTP
-                      </label>
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="123456"
-                        value={otpInput}
-                        onChange={(e) => setOtpInput(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "12px 14px",
-                          borderRadius: "10px",
-                          border: "1px solid #CBD5E1",
-                          fontSize: "18px",
-                          fontFamily: "monospace",
-                          fontWeight: 700,
-                          textAlign: "center",
-                          letterSpacing: "4px",
-                        }}
-                      />
-                    </div>
+                </div>
+              </div>
+
+              {otpSent && (
+                <div style={{ background: "#F1F5F9", padding: "16px", borderRadius: "10px", border: "1px dashed #CBD5E1" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>
+                    Enter UIDAI Verification OTP
+                  </label>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpInput}
+                      onChange={(e) => setOtpInput(e.target.value)}
+                      placeholder="6-digit OTP"
+                      style={{ width: "160px", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "16px", letterSpacing: "4px", textAlign: "center" }}
+                    />
                     <button
                       onClick={handleVerifyAadhaarOtp}
-                      disabled={verifying}
                       className="btnPrimary"
-                      style={{ padding: "12px 20px", borderRadius: "10px", fontWeight: 700, fontSize: "14px" }}
+                      style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700 }}
                     >
-                      {verifying ? "Verifying with UIDAI..." : "Verify & Continue to Emergency Contact &rarr;"}
+                      Verify &amp; Continue
                     </button>
                   </div>
-                )}
-              </div>
-            ) : (
-              /* Fallback OCR Flow */
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", maxWidth: "700px" }}>
-                <div style={{ border: "2px dashed #CBD5E1", borderRadius: "12px", padding: "24px", textAlign: "center", background: "#F8FAFC" }}>
-                  <FileText size={32} style={{ color: "#64748B", margin: "0 auto 12px" }} />
-                  <strong style={{ display: "block", fontSize: "14px", marginBottom: "4px" }}>Upload Aadhaar / DL Card</strong>
-                  <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 16px 0" }}>Front and back photo of physical ID</p>
-                  <button style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                    Select Photo
-                  </button>
                 </div>
+              )}
 
-                <div style={{ border: "2px dashed #CBD5E1", borderRadius: "12px", padding: "24px", textAlign: "center", background: "#F8FAFC" }}>
-                  <Camera size={32} style={{ color: "#64748B", margin: "0 auto 12px" }} />
-                  <strong style={{ display: "block", fontSize: "14px", marginBottom: "4px" }}>Live Liveness Selfie</strong>
-                  <p style={{ fontSize: "12px", color: "#94A3B8", margin: "0 0 16px 0" }}>Face match against ID photo</p>
-                  <button style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
-                    Open Camera
-                  </button>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                  Permanent Address Line 1
+                </label>
+                <input
+                  type="text"
+                  value={addressLineInput}
+                  onChange={(e) => setAddressLineInput(e.target.value)}
+                  placeholder="House/Flat No, Apartment, Street"
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>City</label>
+                  <input
+                    type="text"
+                    value={cityInput}
+                    onChange={(e) => setCityInput(e.target.value)}
+                    placeholder="e.g. Pune"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>State</label>
+                  <input
+                    type="text"
+                    value={stateInput}
+                    onChange={(e) => setStateInput(e.target.value)}
+                    placeholder="Maharashtra"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Pincode</label>
+                  <input
+                    type="text"
+                    value={pincodeInput}
+                    onChange={(e) => setPincodeInput(e.target.value)}
+                    placeholder="411045"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
+                  />
                 </div>
               </div>
-            )}
+
+              <button
+                onClick={() => {
+                  if (!fullNameInput.trim()) {
+                    alert("Please enter your legal name.");
+                    return;
+                  }
+                  setStep(2);
+                }}
+                className="btnPrimary"
+                style={{ padding: "12px 20px", borderRadius: "10px", fontWeight: 700, fontSize: "14px", marginTop: "10px" }}
+              >
+                Continue to Guardian Details &rarr;
+              </button>
+            </div>
           </div>
         )}
 
-        {/* STEP 2: EMERGENCY CONTACT */}
+        {/* STEP 2: GUARDIAN */}
         {step === 2 && (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
-              Step 2 of 3: Safety & Police Compliance
+              Step 2 of 3: Emergency &amp; Guardian Contact
             </span>
             <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 6px 0", color: "#0F172A" }}>
-              Parent / Primary Guardian Contact
+              Parent / Guardian Emergency Details
             </h2>
             <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 24px 0", maxWidth: "600px" }}>
-              Required by City Police Tenant Verification Acts. In case of medical emergencies or late night entry alerts, this contact is notified.
+              Mandatory under Indian PG and Tenancy regulations for safety and police reporting.
             </p>
 
             <div style={{ maxWidth: "480px", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -456,7 +502,7 @@ export default function TenantPassportPage() {
                   type="text"
                   value={emergencyName}
                   onChange={(e) => setEmergencyName(e.target.value)}
-                  placeholder="e.g. Rameshwar Manal"
+                  placeholder="Enter parent or guardian full name"
                   style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                 />
               </div>
@@ -475,7 +521,7 @@ export default function TenantPassportPage() {
                     <option value="Mother">Mother</option>
                     <option value="Spouse">Spouse</option>
                     <option value="Sibling">Sibling</option>
-                    <option value="Local Guardian">Local Guardian</option>
+                    <option value="Guardian">Local Guardian</option>
                   </select>
                 </div>
 
@@ -487,7 +533,7 @@ export default function TenantPassportPage() {
                     type="text"
                     value={emergencyPhone}
                     onChange={(e) => setEmergencyPhone(e.target.value)}
-                    placeholder="+91 94220 12345"
+                    placeholder="+91 98XXX XXXXX"
                     style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                   />
                 </div>
@@ -512,17 +558,17 @@ export default function TenantPassportPage() {
           </div>
         )}
 
-        {/* STEP 3: COMPANY / COLLEGE */}
+        {/* STEP 3: AFFILIATION */}
         {step === 3 && (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
             <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
-              Step 3 of 3: Trust Accelerator
+              Step 3 of 3: Workplace or College
             </span>
             <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 6px 0", color: "#0F172A" }}>
-              Workplace or College Verification
+              Affiliation &amp; Organization
             </h2>
             <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 24px 0", maxWidth: "600px" }}>
-              Verifying your employment or student status unlocks pre-approved zero-deposit or reduced-deposit living perks at participating PG chains.
+              Verifies student or employment status for PG onboarding and tenant safety dossiers.
             </p>
 
             <div style={{ maxWidth: "480px", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -572,26 +618,26 @@ export default function TenantPassportPage() {
 
               <div>
                 <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  {affilType === "professional" ? "Employer / Company Name *" : "College / University Name *"}
+                  {affilType === "professional" ? "Employer / Company Name" : "College / University Name"}
                 </label>
                 <input
                   type="text"
                   value={affilOrg}
                   onChange={(e) => setAffilOrg(e.target.value)}
-                  placeholder={affilType === "professional" ? "e.g. Infosys, TCS, Google" : "e.g. Pune University, COEP"}
+                  placeholder={affilType === "professional" ? "e.g. TCS, Infosys, Google" : "e.g. Pune University, COEP"}
                   style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                 />
               </div>
 
               <div>
                 <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  {affilType === "professional" ? "Corporate Email ID" : "Student Email ID"}
+                  Employee ID / Student Roll Number
                 </label>
                 <input
-                  type="email"
-                  value={workEmail}
-                  onChange={(e) => setWorkEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  type="text"
+                  value={affilId}
+                  onChange={(e) => setAffilId(e.target.value)}
+                  placeholder="e.g. EMP12345 or ROLL987"
                   style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
                 />
               </div>
@@ -605,17 +651,18 @@ export default function TenantPassportPage() {
                 </button>
                 <button
                   onClick={handleCompleteStep3}
+                  disabled={saving}
                   className="btnPrimary"
                   style={{ flex: 1, padding: "10px 20px", borderRadius: "8px", fontWeight: 700, fontSize: "14px" }}
                 >
-                  Generate Universal Resident Passport &rarr;
+                  {saving ? "Saving to Firestore..." : "Save & Generate Resident Passport"}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* STEP 4: PASSPORT ISSUED & DIGITAL DOSSIER */}
+        {/* STEP 4: PASSPORT ISSUED & DIGITAL DOSSIER (ACTUAL VALUES ONLY) */}
         {step === 4 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
             {/* Golden Passport Card */}
@@ -649,51 +696,53 @@ export default function TenantPassportPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                    <ShieldCheck size={20} color="#10B981" />
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#10B981", letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                      OneStay360 Verified Resident Passport
+                    <ShieldCheck size={20} color={isKycComplete ? "#10B981" : "#F59E0B"} />
+                    <span style={{ fontSize: "12px", fontWeight: 800, color: isKycComplete ? "#10B981" : "#F59E0B", letterSpacing: "1.5px", textTransform: "uppercase" }}>
+                      {isKycComplete ? "OneStay360 Verified Resident Passport" : "Resident Passport (Verification Pending)"}
                     </span>
                   </div>
-                  <h2 style={{ fontSize: "26px", fontWeight: 900, margin: 0, letterSpacing: "-0.5px" }}>{passport.fullName}</h2>
+                  <h2 style={{ fontSize: "26px", fontWeight: 900, margin: 0, letterSpacing: "-0.5px" }}>{displayName}</h2>
                   <div style={{ fontSize: "13px", color: "#94A3B8", marginTop: "2px" }}>
-                    Passport ID: <span style={{ fontFamily: "monospace", color: "#38BDF8" }}>{passport.passportId}</span>
+                    Passport ID: <span style={{ fontFamily: "monospace", color: "#38BDF8" }}>{passportId}</span>
                   </div>
                 </div>
 
                 <div style={{ textAlign: "right", background: "rgba(255,255,255,0.08)", padding: "10px 16px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.12)" }}>
-                  <div style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase", fontWeight: 700 }}>Living Trust Score</div>
-                  <div style={{ fontSize: "24px", fontWeight: 900, color: "#10B981" }}>{passport.trustScore} / 100</div>
-                  <div style={{ fontSize: "10px", color: "#38BDF8", fontWeight: 600 }}>Gold Tier Resident</div>
+                  <div style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase", fontWeight: 700 }}>KYC Status</div>
+                  <div style={{ fontSize: "20px", fontWeight: 900, color: isKycComplete ? "#10B981" : "#F59E0B" }}>
+                    {isKycComplete ? "Verified" : "Pending"}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "#38BDF8", fontWeight: 600 }}>{profile?.phone || user?.phoneNumber || "Mobile Parity"}</div>
                 </div>
               </div>
 
               {/* Passport Core Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "20px" }}>
                 <div>
-                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Masked Aadhaar</span>
-                  <div style={{ fontSize: "14px", fontWeight: 700, fontFamily: "monospace", color: "#F8FAFC", marginTop: "2px" }}>
-                    {passport.maskedAadhaar}
+                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Masked Govt ID / Aadhaar</span>
+                  <div style={{ fontSize: "14px", fontWeight: 700, fontFamily: "monospace", color: profile?.idNumber ? "#F8FAFC" : "#94A3B8", marginTop: "2px" }}>
+                    {maskedAadhaar}
                   </div>
                 </div>
 
                 <div>
                   <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Date of Birth &bull; Gender</span>
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#F8FAFC", marginTop: "2px" }}>
-                    {passport.dob} &bull; {passport.gender}
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: formattedDob !== "Not Provided" ? "#F8FAFC" : "#94A3B8", marginTop: "2px" }}>
+                    {formattedDob} &bull; {gender}
                   </div>
                 </div>
 
                 <div>
-                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Affiliation</span>
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#F8FAFC", marginTop: "2px" }}>
-                    {passport.affiliation.organization}
+                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Affiliation / Company</span>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: affiliation !== "Not Provided" ? "#F8FAFC" : "#94A3B8", marginTop: "2px" }}>
+                    {affiliation}
                   </div>
                 </div>
 
                 <div>
-                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Permanent State</span>
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: "#F8FAFC", marginTop: "2px" }}>
-                    {passport.permanentAddress.city}, {passport.permanentAddress.state}
+                  <span style={{ fontSize: "11px", color: "#94A3B8", textTransform: "uppercase" }}>Permanent Address</span>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: addressFormatted !== "Address not provided" ? "#F8FAFC" : "#94A3B8", marginTop: "2px" }}>
+                    {addressFormatted}
                   </div>
                 </div>
               </div>
@@ -706,13 +755,28 @@ export default function TenantPassportPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: "13px", fontWeight: 700, color: "#F8FAFC" }}>Instant Check-In QR</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>Present to any OneStay360 PG Warden for 1-click check-in</div>
+                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>Present to your OneStay360 PG Warden for 1-click contactless check-in</div>
                   </div>
                 </div>
 
-                <div style={{ fontSize: "11px", color: "#64748B", fontFamily: "monospace" }}>
-                  SHA256: {passport.aadhaarHash.slice(0, 16)}...{passport.aadhaarHash.slice(-8)}
-                </div>
+                <button
+                  onClick={() => setStep(1)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Edit3 size={14} /> Update KYC Details
+                </button>
               </div>
             </div>
 
@@ -724,7 +788,7 @@ export default function TenantPassportPage() {
                     Automated Police Verification (Form 29 Engine)
                   </h3>
                   <p style={{ fontSize: "13px", color: "#64748B", margin: "2px 0 0 0" }}>
-                    Pre-compiled and legally compliant across Indian Police Commissionerates.
+                    Statutory Form pre-filled strictly with tenant-submitted verified records.
                   </p>
                 </div>
 
@@ -754,57 +818,63 @@ export default function TenantPassportPage() {
                       Information of Paying Guest / Tenant Staying within Police Station Jurisdiction
                     </strong>
                   </div>
-                  <span style={{ fontSize: "11px", padding: "3px 8px", background: "#ECFDF5", color: "#059669", fontWeight: 700, borderRadius: "6px" }}>
-                    Auto-Compiled
+                  <span style={{ fontSize: "11px", padding: "3px 8px", background: isKycComplete ? "#ECFDF5" : "#FFFBEB", color: isKycComplete ? "#059669" : "#D97706", fontWeight: 700, borderRadius: "6px" }}>
+                    {isKycComplete ? "Auto-Compiled" : "Incomplete Records"}
                   </span>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", fontSize: "13px" }}>
                   <div>
                     <span style={{ color: "#64748B" }}>Resident Full Legal Name:</span>
-                    <strong style={{ display: "block", color: "#0F172A" }}>{passport.fullName}</strong>
+                    <strong style={{ display: "block", color: "#0F172A" }}>{displayName}</strong>
                   </div>
 
                   <div>
-                    <span style={{ color: "#64748B" }}>UIDAI Verified Permanent Address:</span>
-                    <strong style={{ display: "block", color: "#0F172A" }}>
-                      {passport.permanentAddress.line1}, {passport.permanentAddress.city}, {passport.permanentAddress.state} - {passport.permanentAddress.pincode}
-                    </strong>
+                    <span style={{ color: "#64748B" }}>Permanent Address:</span>
+                    <strong style={{ display: "block", color: "#0F172A" }}>{addressFormatted}</strong>
                   </div>
 
                   <div>
                     <span style={{ color: "#64748B" }}>Father / Guardian Name &amp; Contact:</span>
-                    <strong style={{ display: "block", color: "#0F172A" }}>
-                      {passport.emergencyContact.name} ({passport.emergencyContact.relationship}) &bull; {passport.emergencyContact.phone}
-                    </strong>
+                    <strong style={{ display: "block", color: "#0F172A" }}>{emergencyInfo}</strong>
                   </div>
 
                   <div>
                     <span style={{ color: "#64748B" }}>Workplace / University In City:</span>
-                    <strong style={{ display: "block", color: "#0F172A" }}>{passport.affiliation.organization}</strong>
+                    <strong style={{ display: "block", color: "#0F172A" }}>{affiliation}</strong>
                   </div>
                 </div>
 
-                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: "12px", color: "#059669", display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
-                    <CheckCircle2 size={15} /> All statutory fields validated against UIDAI DigiLocker database.
+                <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+                  <div style={{ fontSize: "12px", color: isKycComplete ? "#059669" : "#64748B", display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                    {isKycComplete ? (
+                      <>
+                        <CheckCircle2 size={15} /> All statutory fields validated and ready for submission.
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle size={15} color="#D97706" /> Complete missing fields above to generate signed police PDF.
+                      </>
+                    )}
                   </div>
-                  <button
-                    onClick={() => alert(`Downloading verified ${selectedPoliceState} Police Form 29 PDF...`)}
-                    className="btnPrimary"
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Download size={14} /> Download Signed Form 29 PDF
-                  </button>
+                  {isKycComplete && (
+                    <button
+                      onClick={() => alert(`Downloading verified ${selectedPoliceState} Police Form 29 PDF for ${displayName}...`)}
+                      className="btnPrimary"
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Download size={14} /> Download Signed Form 29 PDF
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

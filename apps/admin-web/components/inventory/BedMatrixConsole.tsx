@@ -179,69 +179,10 @@ export default function BedMatrixConsole() {
         return a.roomNumber.localeCompare(b.roomNumber);
       });
 
-      if (loadedRooms.length === 0) {
-        setRooms([
-          {
-            id: "R101",
-            roomNumber: "101",
-            floor: "1",
-            sharingType: 2,
-            occupancyType: "Double Sharing",
-            hasAC: true,
-            status: "active",
-            beds: [
-              { id: "B1", bedNumber: "1", isOccupied: true, occupied: true, isActive: true, tenantName: "Rohit Sharma", tenantId: "TEN0000001" },
-              { id: "B2", bedNumber: "2", isOccupied: false, occupied: false, isActive: true, tenantName: null },
-            ]
-          },
-          {
-            id: "R102",
-            roomNumber: "102",
-            floor: "1",
-            sharingType: 3,
-            occupancyType: "Triple Sharing",
-            hasAC: true,
-            status: "active",
-            beds: [
-              { id: "B1", bedNumber: "1", isOccupied: true, occupied: true, isActive: true, tenantName: "Priya Patel", tenantId: "TEN0000002" },
-              { id: "B2", bedNumber: "2", isOccupied: true, occupied: true, isActive: true, tenantName: "Amitabh Verma", tenantId: "TEN0000003" },
-              { id: "B3", bedNumber: "3", isOccupied: false, occupied: false, isActive: true, tenantName: null },
-            ]
-          },
-          {
-            id: "R201",
-            roomNumber: "201",
-            floor: "2",
-            sharingType: 2,
-            occupancyType: "Double Sharing",
-            hasAC: false,
-            status: "active",
-            beds: [
-              { id: "B1", bedNumber: "1", isOccupied: false, occupied: false, isActive: true, tenantName: null },
-              { id: "B2", bedNumber: "2", isOccupied: false, occupied: false, isActive: true, tenantName: null },
-            ]
-          },
-          {
-            id: "R202",
-            roomNumber: "202",
-            floor: "2",
-            sharingType: 3,
-            occupancyType: "Triple Sharing",
-            hasAC: true,
-            status: "active",
-            beds: [
-              { id: "B1", bedNumber: "1", isOccupied: true, occupied: true, isActive: true, tenantName: "Rahul Dravid", tenantId: "TEN0000004" },
-              { id: "B2", bedNumber: "2", isOccupied: false, occupied: false, isActive: false, tenantName: null },
-              { id: "B3", bedNumber: "3", isOccupied: false, occupied: false, isActive: true, tenantName: null },
-            ]
-          }
-        ]);
-        return;
-      }
-
       setRooms(loadedRooms);
     } catch (err) {
       console.error("Failed to load room inventory:", err);
+      setRooms([]);
     } finally {
       setRefreshing(false);
     }

@@ -85,164 +85,8 @@ interface PropertyInfo {
   rawMap: any;
 }
 
-const DEFAULT_ROOMS: RoomInfo[] = [
-  {
-    id: "R101",
-    roomNumber: "101",
-    floor: 1,
-    sharingType: 2,
-    hasAC: true,
-    submeterPrev: 1240,
-    submeterCurr: 1385,
-    submeterRate: 12,
-    submeterPhotoUrl: "https://images.unsplash.com/photo-1558441719-8b4e0c818a1c?auto=format&fit=crop&w=600&q=80",
-    beds: [
-      { id: "B1", bedNumber: "101-A", status: "occupied", tenantName: "Rohit Sharma", tenantPhone: "+91 98201 12345", monthlyRent: 8500 },
-      { id: "B2", bedNumber: "101-B", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 8500 },
-    ],
-  },
-  {
-    id: "R102",
-    roomNumber: "102",
-    floor: 1,
-    sharingType: 3,
-    hasAC: true,
-    submeterPrev: 890,
-    submeterCurr: 1045,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "102-A", status: "occupied", tenantName: "Priya Patel", tenantPhone: "+91 97412 88990", monthlyRent: 7000 },
-      { id: "B2", bedNumber: "102-B", status: "occupied", tenantName: "Amitabh Verma", tenantPhone: "+91 98920 44556", monthlyRent: 7000 },
-      { id: "B3", bedNumber: "102-C", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 7000 },
-    ],
-  },
-  {
-    id: "R201",
-    roomNumber: "201",
-    floor: 2,
-    sharingType: 1,
-    hasAC: true,
-    submeterPrev: 450,
-    submeterCurr: 520,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "201-A", status: "occupied", tenantName: "Rahul Dravid", tenantPhone: "+91 98110 33445", monthlyRent: 13500 },
-    ],
-  },
-  {
-    id: "R202",
-    roomNumber: "202",
-    floor: 2,
-    sharingType: 2,
-    hasAC: false,
-    submeterPrev: 310,
-    submeterCurr: 395,
-    submeterRate: 12,
-    beds: [
-      { id: "B1", bedNumber: "202-A", status: "maintenance", tenantName: null, tenantPhone: null, monthlyRent: 6500 },
-      { id: "B2", bedNumber: "202-B", status: "vacant", tenantName: null, tenantPhone: null, monthlyRent: 6500 },
-    ],
-  },
-];
-
-const INITIAL_STARTER_PROPERTIES: PropertyInfo[] = [
-  {
-    id: "PROP_PNQ_001",
-    name: "OneStay Prime Elite Co-Living",
-    city: "Pune",
-    cityCode: "PNQ",
-    address: "Koregaon Park, Lane 7, Pune, MH",
-    description: "Premium co-living property with attached AC bathrooms, high-speed WiFi, gym, and 3-course chef meals.",
-    totalBeds: 48,
-    occupiedBeds: 36,
-    pricePerBed: 8500,
-    featured: true,
-    status: "active",
-    billingStatus: "paid",
-    businessId: "BIZ_001",
-    businessName: "Prime Stays Hospitality LLP",
-    businessPhone: "+91 98201 12345",
-    ratingAverage: 4.8,
-    ratingCount: 34,
-    images: ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 14000,
-    doubleRate: 9500,
-    tripleRate: 7500,
-    acSurcharge: 1500,
-    vegFoodRate: 2500,
-    nonVegFoodRate: 3500,
-    fireNocVerified: true,
-    fssaiVerified: true,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-    rawMap: {},
-  },
-  {
-    id: "PROP_BLR_002",
-    name: "Nexus Tech Residency PG",
-    city: "Bangalore",
-    cityCode: "BLR",
-    address: "HSR Layout Sector 2, Bengaluru, KA",
-    description: "Walking distance from tech hubs. Fiber internet, daily housekeeping, biometrics.",
-    totalBeds: 60,
-    occupiedBeds: 52,
-    pricePerBed: 9200,
-    featured: true,
-    status: "active",
-    billingStatus: "paid",
-    businessId: "BIZ_002",
-    businessName: "Nexus Living Group",
-    businessPhone: "+91 97412 88990",
-    ratingAverage: 4.9,
-    ratingCount: 52,
-    images: ["https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 15500,
-    doubleRate: 10500,
-    tripleRate: 8500,
-    acSurcharge: 1800,
-    vegFoodRate: 2800,
-    nonVegFoodRate: 3800,
-    fireNocVerified: true,
-    fssaiVerified: true,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-    rawMap: {},
-  },
-  {
-    id: "PROP_BOM_003",
-    name: "Bayview Executive Stays",
-    city: "Mumbai",
-    cityCode: "BOM",
-    address: "Andheri West, Near Metro Station, Mumbai, MH",
-    description: "Executive co-living space with single and twin-sharing AC accommodations.",
-    totalBeds: 36,
-    occupiedBeds: 28,
-    pricePerBed: 11500,
-    featured: false,
-    status: "active",
-    billingStatus: "paid",
-    businessId: "BIZ_003",
-    businessName: "Bayview Accommodations",
-    businessPhone: "+91 98920 44556",
-    ratingAverage: 4.7,
-    ratingCount: 29,
-    images: ["https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80"],
-    singleRate: 18000,
-    doubleRate: 12500,
-    tripleRate: 9500,
-    acSurcharge: 2000,
-    vegFoodRate: 3000,
-    nonVegFoodRate: 4000,
-    fireNocVerified: true,
-    fssaiVerified: false,
-    cctvAudited: true,
-    policeIntimated: true,
-    rooms: DEFAULT_ROOMS,
-    rawMap: {},
-  },
-];
+const DEFAULT_ROOMS: RoomInfo[] = [];
+const INITIAL_STARTER_PROPERTIES: PropertyInfo[] = [];
 
 export default function PropertyConsole() {
   const [properties, setProperties] = useState<PropertyInfo[]>([]);
@@ -307,15 +151,15 @@ export default function PropertyConsole() {
             images: data.images || (data.imageUrl ? [data.imageUrl] : ["https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80"]),
             singleRate: Number(data.singleRate || 14000),
             doubleRate: Number(data.doubleRate || 9500),
-            tripleRate: Number(data.tripleRate || 7500),
-            acSurcharge: Number(data.acSurcharge || 1500),
-            vegFoodRate: Number(data.vegFoodRate || 2500),
-            nonVegFoodRate: Number(data.nonVegFoodRate || 3500),
-            fireNocVerified: Boolean(data.fireNocVerified !== false),
-            fssaiVerified: Boolean(data.fssaiVerified !== false),
-            cctvAudited: Boolean(data.cctvAudited !== false),
-            policeIntimated: Boolean(data.policeIntimated !== false),
-            rooms: data.rooms || DEFAULT_ROOMS,
+            tripleRate: Number(data.pricing?.triple || data.tripleRate || 7000),
+            acSurcharge: Number(data.acSurcharge || 1000),
+            vegFoodRate: Number(data.vegFoodRate || 0),
+            nonVegFoodRate: Number(data.nonVegFoodRate || 0),
+            fireNocVerified: Boolean(data.fireNocVerified),
+            fssaiVerified: Boolean(data.fssaiVerified),
+            cctvAudited: Boolean(data.cctvAudited),
+            policeIntimated: Boolean(data.policeIntimated),
+            rooms: data.rooms || [],
             rawMap: data,
           });
         }
@@ -337,6 +181,12 @@ export default function PropertyConsole() {
         console.debug("CollectionGroup properties lookup notice:", e);
       }
 
+      // 2b. Known business properties (BUS0000001)
+      try {
+        const bSnap = await getDocs(collection(db, "businesses", "BUS0000001", "properties"));
+        bSnap.docs.forEach((d) => addDocToMap(d.id, d.data(), d.data().city || "Pune"));
+      } catch (_) {}
+
       // 3. Properties_by_city for major metros
       const cities = ["Pune", "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad"];
       for (const city of cities) {
@@ -346,14 +196,10 @@ export default function PropertyConsole() {
         } catch (_) {}
       }
 
-      if (propMap.size > 0) {
-        setProperties(Array.from(propMap.values()));
-      } else {
-        setProperties(INITIAL_STARTER_PROPERTIES);
-      }
+      setProperties(Array.from(propMap.values()));
     } catch (e) {
       console.error("Error loading properties:", e);
-      setProperties(INITIAL_STARTER_PROPERTIES);
+      setProperties([]);
     } finally {
       setLoading(false);
     }

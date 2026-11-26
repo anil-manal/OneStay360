@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { fetchBusinessProperties } from "@/lib/data-service";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   Receipt,
   Download,
@@ -43,71 +45,62 @@ interface InvoiceItem {
   dueDate: string;
 }
 
-const INITIAL_INVOICES: InvoiceItem[] = [
-  {
-    id: "INV_2026_12_001",
-    invoiceNumber: "INV-2612-001",
-    residentName: "Aarav Sharma",
-    residentPhone: "+91 93593 03097",
-    propertyName: "Ram Nivas PG (Hinjawadi)",
-    roomBed: "Room 101 • Bed B-1",
-    month: "December 2026",
-    baseRent: 9000,
-    electricityUnits: 34,
-    electricityRate: 9.5,
-    electricityTotal: 323,
-    amenityFees: 0,
-    totalAmount: 9323,
-    status: "paid",
-    paymentMethod: "CASHFREE_UPI",
-    paymentRef: "cf_pay_89104812",
-    paidAt: "2026-12-03 14:22",
-    dueDate: "2026-12-05",
-  },
-  {
-    id: "INV_2026_12_002",
-    invoiceNumber: "INV-2612-002",
-    residentName: "Rohan Kulkarni",
-    residentPhone: "+91 98765 43210",
-    propertyName: "Ram Nivas PG (Hinjawadi)",
-    roomBed: "Room 101 • Bed B-2",
-    month: "December 2026",
-    baseRent: 9000,
-    electricityUnits: 48,
-    electricityRate: 9.5,
-    electricityTotal: 456,
-    amenityFees: 0,
-    totalAmount: 9456,
-    status: "paid",
-    paymentMethod: "CASH_OFFLINE",
-    paymentRef: "CASH-REC-092",
-    paidAt: "2026-12-04 11:10",
-    dueDate: "2026-12-05",
-  },
-  {
-    id: "INV_2026_12_003",
-    invoiceNumber: "INV-2612-003",
-    residentName: "Vikram Rathore",
-    residentPhone: "+91 91234 56780",
-    propertyName: "Ram Nivas PG (Hinjawadi)",
-    roomBed: "Room 102 • Bed A-1",
-    month: "December 2026",
-    baseRent: 16000,
-    electricityUnits: 34,
-    electricityRate: 9.5,
-    electricityTotal: 323,
-    amenityFees: 0,
-    totalAmount: 16323,
-    status: "pending",
-    dueDate: "2026-12-05",
-  },
-];
-
 export default function BusinessBillingPage() {
-  const [invoices, setInvoices] = useState<InvoiceItem[]>(INITIAL_INVOICES);
+  const { userProfile } = useAuth();
+  const businessId = userProfile?.businessId || "BUS0000001";
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "overdue">("all");
   const [selectedPropertyFilter, setSelectedPropertyFilter] = useState("all");
+
+  useEffect(() => {
+    async function loadInvoices() {
+      try {
+        setLoading(true);
+        const invList: InvoiceItem[] = [];
+
+        // 1. Fetch from enrollmentRequests where businessId matches and bill/rent was generated
+        try {
+          const enrSnap = await getDocs(collection(db, "enrollmentRequests"));
+          enrSnap.forEach((d) => {
+            const dat = d.data();
+            if (dat.businessId === businessId && (dat.status === "confirmed" || dat.status === "completed" || dat.billSentAt)) {
+              invList.push({
+                id: d.id,
+                invoiceNumber: `INV-${d.id.slice(0, 8).toUpperCase()}`,
+                residentName: dat.tenantName || "Resident",
+                residentPhone: dat.tenantPhone || "No Phone",
+                propertyName: dat.propertyName || "Ram Nivas PG",
+                roomBed: `Room ${dat.roomNumber || "101"} • Bed ${dat.bedNumber || "1"}`,
+                month: "Active Lease Cycle",
+                baseRent: dat.monthlyRent || 7000,
+                electricityUnits: 0,
+                electricityRate: 10,
+                electricityTotal: 0,
+                amenityFees: dat.maintenanceAmount || 0,
+                totalAmount: dat.totalBillAmount || dat.totalFirstMonth || dat.monthlyRent || 7000,
+                status: dat.status === "confirmed" ? "paid" : "pending",
+                paymentMethod: dat.paymentMode === "upi_manual" ? "CASHFREE_UPI" : "CASH_OFFLINE",
+                paymentRef: dat.transactionId || undefined,
+                paidAt: dat.confirmedAt?.toDate ? dat.confirmedAt.toDate().toLocaleDateString() : undefined,
+                dueDate: "5th of month",
+              });
+            }
+          });
+        } catch (e) {
+          console.warn("Could not load enrollment bills:", e);
+        }
+
+        setInvoices(invList);
+      } catch (err) {
+        console.error("Error loading billing data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadInvoices();
+  }, [businessId]);
 
   // Modals
   const [cashModalInvoice, setCashModalInvoice] = useState<InvoiceItem | null>(null);

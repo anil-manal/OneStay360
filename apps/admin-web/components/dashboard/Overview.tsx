@@ -16,10 +16,10 @@ import { Building2, UsersRound, CircleDollarSign, ShieldAlert } from "lucide-rea
 
 export default function Overview() {
   const [stats, setStats] = useState({
-    totalBeds: 238,
-    totalProperties: 5,
-    totalBusinesses: 5,
-    pendingKYC: 1,
+    totalBeds: 0,
+    totalProperties: 0,
+    totalBusinesses: 0,
+    pendingKYC: 0,
   });
   const [cityData, setCityData] = useState<any[]>([]);
   const [revenueData, setRevenueData] = useState<any[]>([]);
@@ -41,6 +41,14 @@ export default function Overview() {
         try {
           const grpSnap = await getDocs(collectionGroup(db, "properties"));
           grpSnap.docs.forEach((d) => {
+            if (!propMap.has(d.id)) propMap.set(d.id, d.data());
+          });
+        } catch (_) {}
+
+        // 2b. Query businesses/BUS0000001/properties
+        try {
+          const bSnap = await getDocs(collection(db, "businesses", "BUS0000001", "properties"));
+          bSnap.docs.forEach((d) => {
             if (!propMap.has(d.id)) propMap.set(d.id, d.data());
           });
         } catch (_) {}
@@ -73,10 +81,10 @@ export default function Overview() {
           }
         } catch (_) {}
 
-        // Calculate total beds
-        const totalBeds = properties.reduce((sum, p) => sum + Number(p.totalBeds || p.capacity || 24), 0) || 238;
-        const totalProperties = properties.length || 5;
-        const totalBusinesses = businessCount || 5;
+        // Calculate actual total beds
+        const totalBeds = properties.reduce((sum, p) => sum + Number(p.totalBeds || p.totals?.beds || p.capacity || 0), 0);
+        const totalProperties = properties.length;
+        const totalBusinesses = businessCount;
 
         // Aggregate by city
         const cityCounts: Record<string, number> = {};
@@ -94,19 +102,10 @@ export default function Overview() {
           totalBeds,
           totalProperties,
           totalBusinesses,
-          pendingKYC: pendingCount || 1,
+          pendingKYC: pendingCount,
         });
 
-        setCityData(formattedCityData.length > 0 ? formattedCityData : [
-          { name: "Bangalore", properties: 8 },
-          { name: "Mumbai", properties: 7 },
-          { name: "Delhi", properties: 6 },
-          { name: "Pune", properties: 6 },
-          { name: "Hyderabad", properties: 6 },
-          { name: "Chennai", properties: 6 },
-          { name: "Kolkata", properties: 6 },
-          { name: "Ahmedabad", properties: 5 },
-        ]);
+        setCityData(formattedCityData);
 
         const baseRev = totalProperties * 24 * 35; // properties * avg beds * rate
         setRevenueData([

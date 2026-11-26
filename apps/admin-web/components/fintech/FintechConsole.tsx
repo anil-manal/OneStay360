@@ -89,98 +89,7 @@ interface EscrowHolding {
   disputeFlag: boolean;
 }
 
-const DEFAULT_ESCROW_HOLDINGS: EscrowHolding[] = [
-  {
-    id: "ESC_9001",
-    tenantId: "TEN0000001",
-    tenantName: "Anil Manal",
-    tenantPhone: "+91 93593 03097",
-    propertyName: "Ram Nivas Accommodations",
-    roomBed: "Room 101 • Bed B1",
-    depositAmount: 15000,
-    status: "locked_in_escrow",
-    unpaidRent: 0,
-    electricityDeduction: 0,
-    damageDeduction: 0,
-    netRefundable: 15000,
-    bankAccount: "HDFC •••• 8821",
-    bankIfsc: "HDFC0001234",
-    upiId: "anil.manal@okhdfcbank",
-    disputeFlag: false,
-  },
-  {
-    id: "ESC_9002",
-    tenantId: "TEN0000002",
-    tenantName: "Rohan Verma",
-    tenantPhone: "+91 98201 55443",
-    propertyName: "Zolo CyberPark Premier",
-    roomBed: "Room 204 • Bed B2",
-    depositAmount: 18000,
-    status: "moveout_pending",
-    unpaidRent: 0,
-    electricityDeduction: 540,
-    damageDeduction: 1200,
-    netRefundable: 16260,
-    bankAccount: "ICICI •••• 4410",
-    bankIfsc: "ICIC0000412",
-    upiId: "rohan.verma@icici",
-    disputeFlag: false,
-  },
-  {
-    id: "ESC_9003",
-    tenantId: "TEN0000003",
-    tenantName: "Pooja Hegde",
-    tenantPhone: "+91 98765 43210",
-    propertyName: "Isthara Whitefield Hive",
-    roomBed: "Room 302 • Bed B1",
-    depositAmount: 12000,
-    status: "refund_approved",
-    unpaidRent: 0,
-    electricityDeduction: 320,
-    damageDeduction: 0,
-    netRefundable: 11680,
-    bankAccount: "SBI •••• 9012",
-    bankIfsc: "SBIN0000456",
-    upiId: "pooja.hegde@oksbi",
-    disputeFlag: false,
-  },
-  {
-    id: "ESC_9004",
-    tenantId: "TEN0000004",
-    tenantName: "Vikram Rathore",
-    tenantPhone: "+91 98111 22334",
-    propertyName: "Stanza Living Elite",
-    roomBed: "Room 105 • Bed B1",
-    depositAmount: 16000,
-    status: "locked_in_escrow",
-    unpaidRent: 0,
-    electricityDeduction: 0,
-    damageDeduction: 0,
-    netRefundable: 16000,
-    bankAccount: "AXIS •••• 3311",
-    bankIfsc: "UTIB0000112",
-    upiId: "vikram.rathore@axis",
-    disputeFlag: true,
-  },
-  {
-    id: "ESC_9005",
-    tenantId: "TEN0000005",
-    tenantName: "Sneha Rao",
-    tenantPhone: "+91 97412 88990",
-    propertyName: "HelloWorld Koramangala",
-    roomBed: "Room 401 • Bed B2",
-    depositAmount: 14000,
-    status: "disbursed",
-    unpaidRent: 0,
-    electricityDeduction: 450,
-    damageDeduction: 0,
-    netRefundable: 13550,
-    bankAccount: "KOTAK •••• 7765",
-    bankIfsc: "KKBK0000789",
-    upiId: "sneha.rao@kotak",
-    disputeFlag: false,
-  },
-];
+const DEFAULT_ESCROW_HOLDINGS: EscrowHolding[] = [];
 
 export default function FintechConsole() {
   const [config, setConfig] = useState<CashfreePlatformConfig>({
@@ -202,7 +111,7 @@ export default function FintechConsole() {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [payoutQueue, setPayoutQueue] = useState<LandlordPayoutQueue[]>([]);
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
-  const [escrowHoldings, setEscrowHoldings] = useState<EscrowHolding[]>(DEFAULT_ESCROW_HOLDINGS);
+  const [escrowHoldings, setEscrowHoldings] = useState<EscrowHolding[]>([]);
   const [selectedRefundModal, setSelectedRefundModal] = useState<EscrowHolding | null>(null);
   const [disbursingRefund, setDisbursingRefund] = useState(false);
   const [refundDisbursedSuccess, setRefundDisbursedSuccess] = useState<string | null>(null);
