@@ -475,11 +475,15 @@ export default function BusinessPropertiesPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748B" }}>Warden / Manager</div>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>{prop.wardenName}</div>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: prop.wardenName && prop.wardenName !== "Not Assigned" ? "#0F172A" : "#94A3B8" }}>
+                      {prop.wardenName || "Not Assigned"}
+                    </div>
                   </div>
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748B" }}>Contact Phone</div>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#059669" }}>{prop.wardenPhone}</div>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: prop.wardenPhone && prop.wardenPhone !== "—" ? "#059669" : "#94A3B8" }}>
+                      {prop.wardenPhone || "—"}
+                    </div>
                   </div>
                 </div>
               </div>

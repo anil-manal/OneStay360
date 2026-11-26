@@ -83,73 +83,29 @@ interface LandlordPropertyDetails {
   rooms: RoomInfo[];
 }
 
-const DEFAULT_ROOMS: RoomInfo[] = [
-  {
-    id: "R101",
-    roomNumber: "101",
-    floor: 1,
-    hasAC: true,
-    sharingType: 2,
-    submeterPrev: 1240,
-    submeterCurr: 1385,
-    submeterRate: 12,
-    beds: [
-      { id: "B101_1", bedNumber: "A", status: "occupied", tenantName: "Anil Kumar Manal", tenantPhone: "+91 93593 03097", monthlyRent: 9500, depositAmount: 15000, kycVerified: true },
-      { id: "B101_2", bedNumber: "B", status: "occupied", tenantName: "Rohan Verma", tenantPhone: "+91 98201 55443", monthlyRent: 9500, depositAmount: 15000, kycVerified: true },
-    ],
-  },
-  {
-    id: "R102",
-    roomNumber: "102",
-    floor: 1,
-    hasAC: false,
-    sharingType: 3,
-    submeterPrev: 890,
-    submeterCurr: 980,
-    submeterRate: 12,
-    beds: [
-      { id: "B102_1", bedNumber: "A", status: "occupied", tenantName: "Siddharth Sen", tenantPhone: "+91 98111 22334", monthlyRent: 7500, depositAmount: 12000, kycVerified: true },
-      { id: "B102_2", bedNumber: "B", status: "vacant", monthlyRent: 7500 },
-      { id: "B102_3", bedNumber: "C", status: "maintenance" },
-    ],
-  },
-  {
-    id: "R201",
-    roomNumber: "201",
-    floor: 2,
-    hasAC: true,
-    sharingType: 2,
-    submeterPrev: 2100,
-    submeterCurr: 2260,
-    submeterRate: 12,
-    beds: [
-      { id: "B201_1", bedNumber: "A", status: "occupied", tenantName: "Pooja Hegde", tenantPhone: "+91 98765 43210", monthlyRent: 11000, depositAmount: 18000, kycVerified: true },
-      { id: "B201_2", bedNumber: "B", status: "vacant", monthlyRent: 11000 },
-    ],
-  },
-];
+const DEFAULT_ROOMS: RoomInfo[] = [];
 
 const DEFAULT_LANDLORD_PROPERTY: LandlordPropertyDetails = {
-  id: "PROP_AMD_032",
-  name: "Zolo CyberPark Premier Residency",
-  city: "Ahmedabad",
-  address: "Plot 42, SG Highway, Bodakdev, Ahmedabad, Gujarat 380054",
-  totalRooms: 12,
-  totalBeds: 36,
-  occupiedBeds: 31,
-  pricePerBed: 9500,
+  id: "BUS0000001PNR001",
+  name: "Ram Nivas PG",
+  city: "Pune",
+  address: "Hinjawadi IT Park, Pune, Maharashtra",
+  totalRooms: 2,
+  totalBeds: 6,
+  occupiedBeds: 3,
+  pricePerBed: 7000,
   pricing: {
     maxSharing: 3,
     sharing: [
-      { sharing: 1, nonAc: 14000, ac: 15500 },
-      { sharing: 2, nonAc: 9500, ac: 11000 },
-      { sharing: 3, nonAc: 7500, ac: 9000 },
+      { sharing: 1, nonAc: 16000, ac: 17000 },
+      { sharing: 2, nonAc: 9000, ac: 10000 },
+      { sharing: 3, nonAc: 7000, ac: 8000 },
     ],
-    securityDeposit: 15000,
-    oneTimeMaintenance: 1200,
+    securityDeposit: 5000,
+    oneTimeMaintenance: 1000,
     maintenanceDeductedFromDeposit: true,
   },
-  rooms: DEFAULT_ROOMS,
+  rooms: [],
 };
 
 export default function LandlordPropertyConsolePage({ params }: { params: Promise<{ propertyId: string }> }) {
@@ -279,8 +235,8 @@ export default function LandlordPropertyConsolePage({ params }: { params: Promis
             return {
               ...b,
               status: newStatus,
-              tenantName: newStatus === "occupied" ? checkinForm.tenantName || "Rahul Sharma" : null,
-              tenantPhone: newStatus === "occupied" ? checkinForm.tenantPhone || "+91 98201 12345" : null,
+              tenantName: newStatus === "occupied" ? checkinForm.tenantName || "Resident" : null,
+              tenantPhone: newStatus === "occupied" ? checkinForm.tenantPhone || "—" : null,
               monthlyRent: checkinForm.monthlyRent,
               kycVerified: true,
             };

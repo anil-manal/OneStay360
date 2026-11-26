@@ -165,8 +165,8 @@ export async function fetchBusinessProperties(businessId: string): Promise<Prope
         amenities: data.amenities || {},
         rules: data.rules || {},
         foodPlan: data.foodPlan || {},
-        wardenName: data.wardenName || "Ramesh Patel",
-        wardenPhone: data.businessPhone || data.wardenPhone || "+91 93593 03097",
+        wardenName: data.wardenName || "Not Assigned",
+        wardenPhone: data.wardenPhone || data.businessPhone || data.phone || "—",
         monthlyGmv: gmv,
         pendingMeterReadings: 0,
       });
@@ -295,8 +295,8 @@ export async function fetchPropertyWithLayout(
               id: `B${b}`,
               bedNumber: `Bed ${b}`,
               isOccupied: isOcc,
-              tenantName: isOcc ? (b === 1 ? "Aarav Sharma" : b === 2 ? "Rohan Kulkarni" : "Vikram Rathore") : undefined,
-              tenantPhone: isOcc ? "+91 98234 56789" : undefined,
+              tenantName: isOcc ? "Occupied" : undefined,
+              tenantPhone: undefined,
               status: isOcc ? "occupied" : "available",
             });
           }
