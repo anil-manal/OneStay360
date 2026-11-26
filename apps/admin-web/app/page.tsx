@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import "./landing.css";
 import {
   Building2,
@@ -33,6 +34,21 @@ import {
 } from "lucide-react";
 
 export default function LightLandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const host = window.location.hostname;
+      if (host.startsWith("app.") || host.startsWith("tenant.") || host.startsWith("my.")) {
+        router.replace("/tenant");
+      } else if (host.startsWith("partner.") || host.startsWith("business.") || host.startsWith("landlord.")) {
+        router.replace("/business");
+      } else if (host.startsWith("admin.") || host.startsWith("admin-")) {
+        router.replace("/admin");
+      }
+    }
+  }, [router]);
+
   const [activePersona, setActivePersona] = useState<"owners" | "tenants">("owners");
   const [previewTab, setPreviewTab] = useState<"owner" | "tenant">("owner");
   const [monthlyRentVolume, setMonthlyRentVolume] = useState<number>(2000000); // 20 Lakhs

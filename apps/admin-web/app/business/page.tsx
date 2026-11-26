@@ -114,6 +114,23 @@ export default function BusinessDashboardPage() {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Live Data
           </button>
           <Link
+            href="/business/tenants"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 18px",
+              background: "#0F172A",
+              color: "#FFFFFF",
+              borderRadius: "10px",
+              fontWeight: 700,
+              fontSize: "13px",
+              textDecoration: "none",
+            }}
+          >
+            <Users size={16} /> Tenants & Check-in
+          </Link>
+          <Link
             href="/business/properties"
             style={{
               display: "flex",
@@ -129,7 +146,7 @@ export default function BusinessDashboardPage() {
               boxShadow: "0 2px 4px rgba(5,150,105,0.2)",
             }}
           >
-            <Plus size={16} /> Manage Properties
+            <Plus size={16} /> Add / Manage Properties
           </Link>
         </div>
       </div>

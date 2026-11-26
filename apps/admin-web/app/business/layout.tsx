@@ -45,6 +45,7 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
   const navItems = [
     { label: "Operations Pulse", href: "/business", icon: LayoutDashboard, exact: true },
     { label: "Properties & Inventory", href: "/business/properties", icon: Building2 },
+    { label: "Tenants & Residents", href: "/business/tenants", icon: Users2 },
     { label: "Billing & Submeters", href: "/business/billing", icon: Receipt },
     { label: "Staff & Wardens", href: "/business/staff", icon: Users2 },
   ];

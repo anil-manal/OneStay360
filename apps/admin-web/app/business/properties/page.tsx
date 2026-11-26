@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import {
   fetchBusinessProperties,
-  createBusinessProperty,
   PropertyData,
 } from "@/lib/data-service";
+import AddPropertyModal from "@/components/properties/AddPropertyModal";
 import {
   Building2,
   Bed,
@@ -36,19 +36,6 @@ export default function BusinessPropertiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // New property form state
-  const [newPropName, setNewPropName] = useState("");
-  const [newPropCity, setNewPropCity] = useState("Pune");
-  const [newPropAddress, setNewPropAddress] = useState("");
-  const [newPropRooms, setNewPropRooms] = useState("4");
-  const [newPropBeds, setNewPropBeds] = useState("12");
-  const [newSinglePrice, setNewSinglePrice] = useState("16000");
-  const [newDoublePrice, setNewDoublePrice] = useState("9000");
-  const [newTriplePrice, setNewTriplePrice] = useState("7000");
-  const [newWardenName, setNewWardenName] = useState("Ramesh Patel");
-  const [newWardenPhone, setNewWardenPhone] = useState("+91 93593 03097");
 
   const loadProperties = async () => {
     setLoading(true);
@@ -74,42 +61,6 @@ export default function BusinessPropertiesPage() {
     const matchesCity = selectedCity === "all" || p.city.toLowerCase() === selectedCity.toLowerCase();
     return matchesSearch && matchesCity;
   });
-
-  const handleAddProperty = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPropName || !newPropAddress) return;
-    setIsSubmitting(true);
-
-    try {
-      await createBusinessProperty(businessId, {
-        name: newPropName,
-        city: newPropCity,
-        address: newPropAddress,
-        totalRooms: parseInt(newPropRooms) || 4,
-        totalBeds: parseInt(newPropBeds) || 12,
-        occupiedBeds: 0,
-        wardenName: newWardenName,
-        wardenPhone: newWardenPhone,
-        pricing: {
-          single: parseInt(newSinglePrice) || 16000,
-          double: parseInt(newDoublePrice) || 9000,
-          triple: parseInt(newTriplePrice) || 7000,
-          securityDeposit: 5000,
-          oneTimeMaintenance: 1000,
-        },
-      });
-
-      await loadProperties();
-      setIsAddModalOpen(false);
-      setNewPropName("");
-      setNewPropAddress("");
-    } catch (err) {
-      console.error("Error creating property:", err);
-      alert("Failed to save property to Firestore: " + (err as any).message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div style={{ maxWidth: "1400px", margin: "0 auto", paddingBottom: "60px" }}>
@@ -533,219 +484,15 @@ export default function BusinessPropertiesPage() {
         })}
       </div>
 
-      {/* Add New Property Modal */}
-      {isAddModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#FFFFFF",
-              borderRadius: "16px",
-              padding: "28px",
-              maxWidth: "560px",
-              width: "100%",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
-              <div
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "10px",
-                  background: "#ECFDF5",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#059669",
-                }}
-              >
-                <Building2 size={22} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
-                  Add New PG Property
-                </h3>
-                <div style={{ fontSize: "12px", color: "#64748B" }}>
-                  Saves directly to Firestore under <strong>{businessId}</strong>
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleAddProperty}>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Property Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ram Nivas PG 2"
-                  value={newPropName}
-                  onChange={(e) => setNewPropName(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    border: "1px solid #CBD5E1",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    outline: "none",
-                  }}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    City *
-                  </label>
-                  <select
-                    value={newPropCity}
-                    onChange={(e) => setNewPropCity(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                      background: "#FFFFFF",
-                    }}
-                  >
-                    <option value="Pune">Pune</option>
-                    <option value="Bangalore">Bangalore</option>
-                    <option value="Ahmedabad">Ahmedabad</option>
-                    <option value="Hyderabad">Hyderabad</option>
-                    <option value="Mumbai">Mumbai</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Total Beds
-                  </label>
-                  <input
-                    type="number"
-                    value={newPropBeds}
-                    onChange={(e) => setNewPropBeds(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Street Address & Locality *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Near IT Park Phase 1, Hinjawadi"
-                  value={newPropAddress}
-                  onChange={(e) => setNewPropAddress(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    border: "1px solid #CBD5E1",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    outline: "none",
-                  }}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "14px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                    Single Rent (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={newSinglePrice}
-                    onChange={(e) => setNewSinglePrice(e.target.value)}
-                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                    Double Rent (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={newDoublePrice}
-                    onChange={(e) => setNewDoublePrice(e.target.value)}
-                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                    Triple Rent (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={newTriplePrice}
-                    onChange={(e) => setNewTriplePrice(e.target.value)}
-                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: "8px",
-                    border: "1px solid #CBD5E1",
-                    background: "#FFFFFF",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#64748B",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: "#059669",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#FFFFFF",
-                    cursor: "pointer",
-                  }}
-                >
-                  {isSubmitting ? "Creating in Firestore..." : "Create Property"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 1:1 Complete Add Property Modal */}
+      <AddPropertyModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={loadProperties}
+        businessId={businessId}
+        businessName={businessName}
+        businessPhone={userProfile?.phoneNumber || ""}
+      />
     </div>
   );
 }

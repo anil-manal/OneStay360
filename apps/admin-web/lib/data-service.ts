@@ -11,6 +11,9 @@ import {
   limit,
   serverTimestamp,
   addDoc,
+  runTransaction,
+  writeBatch,
+  increment,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -322,23 +325,256 @@ export async function fetchPropertyWithLayout(
 }
 
 /**
- * Add a new property to a business
+ * Fetch rooms and beds list for a property
+ */
+export async function fetchPropertyRoomsAndBeds(
+  businessId: string,
+  propertyId: string
+): Promise<RoomData[]> {
+  const { rooms } = await fetchPropertyWithLayout(businessId, propertyId);
+  return rooms;
+}
+
+export const CITIES_CONFIG: Record<string, string> = {
+  Pune: "PNR",
+  Mumbai: "MBR",
+  Bangalore: "BLR",
+  Chennai: "CHR",
+  Delhi: "DLR",
+  Noida: "NPR",
+  Gurgaon: "GRR",
+  Kolkata: "KTR",
+  Kochi: "KCR",
+};
+
+/**
+ * Generate sequential property ID matching Flutter id_generation_service
+ * Format: BUS0000001PNR001
+ */
+export async function generateSequentialPropertyId(
+  businessId: string,
+  cityCode: string
+): Promise<string> {
+  const code = cityCode || "GEN";
+  const counterRef = doc(db, "counters", `property_${businessId}_${code}`);
+  try {
+    const nextNum = await runTransaction(db, async (txn) => {
+      const snap = await txn.get(counterRef);
+      const current = snap.exists() ? (snap.data()?.count as number) || 0 : 0;
+      const next = current + 1;
+      txn.set(counterRef, { count: next, updatedAt: serverTimestamp() }, { merge: true });
+      return next;
+    });
+    return `${businessId}${code}${String(nextNum).padStart(3, "0")}`;
+  } catch (err) {
+    console.warn("Counter transaction fallback for property ID:", err);
+    const rand = Math.floor(100 + Math.random() * 900);
+    return `${businessId}${code}${rand}`;
+  }
+}
+
+/**
+ * Generate sequential tenant ID matching Flutter id_generation_service
+ * Format: TEN0000001
+ */
+export async function generateSequentialTenantId(): Promise<string> {
+  const counterRef = doc(db, "counters", "tenant_counter");
+  try {
+    const nextNum = await runTransaction(db, async (txn) => {
+      const snap = await txn.get(counterRef);
+      const current = snap.exists() ? (snap.data()?.count as number) || 0 : 0;
+      const next = current + 1;
+      txn.set(counterRef, { count: next, updatedAt: serverTimestamp() }, { merge: true });
+      return next;
+    });
+    return `TEN${String(nextNum).padStart(7, "0")}`;
+  } catch (err) {
+    console.warn("Counter transaction fallback for tenant ID:", err);
+    const rand = Math.floor(1000000 + Math.random() * 9000000);
+    return `TEN${rand}`;
+  }
+}
+
+export interface NewPropertyInput {
+  name: string;
+  city: string;
+  cityCode?: string;
+  address: string;
+  pincode: string;
+  numberOfFloors: number;
+  description?: string;
+  landmarks?: string;
+  googleMapsLink?: string;
+  pricing: {
+    maxSharing: number;
+    securityDeposit: number;
+    oneTimeMaintenance: number;
+    maintenanceDeductedFromDeposit: boolean;
+    noticePeriodDays: number;
+    sharing: Array<{ sharing: number; ac: number; nonAc: number }>;
+  };
+  amenities: {
+    wifi: boolean;
+    ac: boolean;
+    laundry: boolean;
+    foodIncluded: boolean;
+    parking: boolean;
+    geyser: boolean;
+    powerBackup: boolean;
+    cctv: boolean;
+    housekeeping: boolean;
+  };
+  rules: {
+    genderAllowed: string;
+    curfew: boolean;
+    visitorsAllowed: boolean;
+    smokingAllowed: boolean;
+    alcoholAllowed: boolean;
+    noticePeriodDays: number;
+  };
+  foodPlan?: {
+    notes?: string;
+    plan: Record<string, string[]>;
+  };
+  rooms: Array<{
+    roomNumber: string;
+    floor: string;
+    sharingType: number;
+    hasAC: boolean;
+  }>;
+  images?: string[];
+  wardenName?: string;
+  wardenPhone?: string;
+}
+
+/**
+ * Creates a complete property with rooms and beds subcollections matching Flutter AddPropertyViewModel
+ */
+export async function createCompleteProperty(
+  businessId: string,
+  businessName: string,
+  businessPhone: string,
+  input: NewPropertyInput
+): Promise<string> {
+  const cityCode = input.cityCode || CITIES_CONFIG[input.city] || "GEN";
+  const propertyId = await generateSequentialPropertyId(businessId, cityCode);
+
+  let totalBeds = 0;
+  for (const r of input.rooms) {
+    totalBeds += r.sharingType || 1;
+  }
+
+  const propertyDocData = {
+    id: propertyId,
+    propertyId,
+    businessId,
+    businessName: businessName || "OneStay",
+    businessPhone: businessPhone || "",
+    name: input.name,
+    address: input.address,
+    city: input.city,
+    cityCode,
+    pincode: input.pincode,
+    numberOfFloors: input.numberOfFloors || 1,
+    description: input.description || "",
+    landmarks: input.landmarks || "",
+    googleMapsLink: input.googleMapsLink || "",
+    pricing: {
+      single: input.pricing.sharing.find((s) => s.sharing === 1)?.nonAc || 0,
+      double: input.pricing.sharing.find((s) => s.sharing === 2)?.nonAc || 0,
+      triple: input.pricing.sharing.find((s) => s.sharing === 3)?.nonAc || 0,
+      securityDeposit: input.pricing.securityDeposit,
+      oneTimeMaintenance: input.pricing.oneTimeMaintenance,
+      maintenanceDeductedFromDeposit: input.pricing.maintenanceDeductedFromDeposit,
+      sharing: input.pricing.sharing,
+      maxSharing: input.pricing.maxSharing,
+    },
+    amenities: input.amenities,
+    foodPlan: input.amenities.foodIncluded && input.foodPlan ? input.foodPlan : null,
+    rules: input.rules,
+    totals: {
+      rooms: input.rooms.length,
+      beds: totalBeds,
+      availableBeds: totalBeds,
+    },
+    totalRooms: input.rooms.length,
+    totalBeds,
+    occupiedBeds: 0,
+    availableBeds: totalBeds,
+    activeBedCount: 0,
+    billedBedCount: 0,
+    images: input.images || [],
+    rating: { average: 0, count: 0 },
+    status: "active",
+    wardenName: input.wardenName || "Not Assigned",
+    wardenPhone: input.wardenPhone || "",
+    monthlyGmv: 0,
+    pendingMeterReadings: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  // 1. Write property document to both business subcollection and root / city collections
+  const bizPropRef = doc(db, "businesses", businessId, "properties", propertyId);
+  const cityPropRef = doc(db, "properties_by_city", input.city, "properties", propertyId);
+  const rootPropRef = doc(db, "properties", propertyId);
+
+  await setDoc(bizPropRef, propertyDocData);
+  await setDoc(cityPropRef, propertyDocData);
+  await setDoc(rootPropRef, propertyDocData);
+
+  // 2. Create room and bed documents
+  const batch = writeBatch(db);
+  for (const r of input.rooms) {
+    const roomId = r.roomNumber.trim();
+    const roomRef = doc(db, "businesses", businessId, "properties", propertyId, "rooms", roomId);
+    batch.set(roomRef, {
+      roomNumber: roomId,
+      floor: r.floor || "Ground",
+      sharingType: r.sharingType,
+      occupancyType: r.sharingType === 1 ? "Single" : r.sharingType === 2 ? "Double" : r.sharingType === 3 ? "Triple" : `${r.sharingType}-Sharing`,
+      hasAC: r.hasAC,
+      status: "available",
+      createdAt: serverTimestamp(),
+    });
+
+    for (let b = 1; b <= r.sharingType; b++) {
+      const bedId = String(b);
+      const bedRef = doc(db, "businesses", businessId, "properties", propertyId, "rooms", roomId, "beds", bedId);
+      batch.set(bedRef, {
+        bedNumber: bedId,
+        isOccupied: false,
+        isActive: false,
+        status: "available",
+      });
+    }
+  }
+
+  await batch.commit();
+  return propertyId;
+}
+
+/**
+ * Add a new property to a business (legacy compatibility)
  */
 export async function createBusinessProperty(
   businessId: string,
   propertyData: Partial<PropertyData>
 ): Promise<string> {
-  const cityCode = (propertyData.city || "Pune").slice(0, 3).toUpperCase();
-  const randNum = Math.floor(100 + Math.random() * 900);
-  const propertyId = `${businessId}${cityCode}${randNum}`;
+  const city = propertyData.city || "Pune";
+  const cityCode = CITIES_CONFIG[city] || city.slice(0, 3).toUpperCase();
+  const propertyId = await generateSequentialPropertyId(businessId, cityCode);
 
   const fullData = {
     ...propertyData,
     id: propertyId,
     propertyId,
     businessId,
+    cityCode,
     status: "active",
     billingStatus: "paid",
+    wardenName: propertyData.wardenName || "Not Assigned",
+    wardenPhone: propertyData.wardenPhone || "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     totals: {
@@ -353,6 +589,297 @@ export async function createBusinessProperty(
   await setDoc(doc(db, "properties", propertyId), fullData);
 
   return propertyId;
+}
+
+// ─────────────────────────────────────────────
+// TENANT SERVICES (DIRECTORY, ENROLLMENT, CHECK-IN)
+// ─────────────────────────────────────────────
+
+export interface LiveTenantRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  altPhone?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  address?: string;
+  nationality?: string;
+  motherTongue?: string;
+  idType?: string;
+  idNumber?: string;
+  officeInstituteName?: string;
+  officeInstituteId?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
+  relationship?: string;
+  propertyId: string;
+  propertyName?: string;
+  roomId: string;
+  roomNumber?: string;
+  floor?: string;
+  bedId: string;
+  monthlyRent: number;
+  securityDeposit?: number;
+  maintenanceFee?: number;
+  proratedRent?: number;
+  checkInDate: any;
+  checkOutDate?: any;
+  status: "active" | "notice" | "vacated" | "pending";
+  foodAddon?: boolean;
+  foodPreference?: string;
+  paymentCycle?: string;
+  tenantType?: string;
+  businessId: string;
+  createdAt?: any;
+}
+
+/**
+ * Fetch all tenants for a business from live Firestore
+ */
+export async function fetchBusinessTenants(businessId: string): Promise<LiveTenantRecord[]> {
+  try {
+    const tenantsRef = collection(db, "businesses", businessId, "tenants");
+    const snap = await getDocs(tenantsRef);
+    const list: LiveTenantRecord[] = [];
+
+    snap.forEach((d) => {
+      const data = d.data();
+      list.push({
+        id: d.id,
+        tenantId: data.tenantId || d.id,
+        name: data.name || data.fullName || "Resident",
+        phone: data.phone || "",
+        email: data.email || "",
+        altPhone: data.altPhone || "",
+        gender: data.gender || "Male",
+        dateOfBirth: data.dateOfBirth || data.dob || "",
+        address: data.address || data.currentAddress || "",
+        nationality: data.nationality || "Indian",
+        motherTongue: data.motherTongue || "",
+        idType: data.idType || "Aadhaar",
+        idNumber: data.idNumber || data.aadharNumber || "",
+        officeInstituteName: data.officeInstituteName || "",
+        officeInstituteId: data.officeInstituteId || "",
+        emergencyName: data.emergencyName || "",
+        emergencyPhone: data.emergencyPhone || "",
+        relationship: data.relationship || "",
+        propertyId: data.propertyId || "",
+        propertyName: data.propertyName || "",
+        roomId: data.roomId || "",
+        roomNumber: data.roomNumber || data.roomId || "",
+        floor: data.floor || "",
+        bedId: data.bedId || "1",
+        monthlyRent: Number(data.monthlyRent) || 0,
+        securityDeposit: Number(data.securityDeposit) || 0,
+        maintenanceFee: Number(data.maintenanceFee) || 0,
+        proratedRent: Number(data.proratedRent) || 0,
+        checkInDate: data.checkInDate,
+        checkOutDate: data.checkOutDate,
+        status: data.status || "active",
+        foodAddon: data.foodAddon ?? true,
+        foodPreference: data.foodPreference || "Both",
+        paymentCycle: data.paymentCycle || "Monthly",
+        tenantType: data.tenantType || "Bachelor",
+        businessId: data.businessId || businessId,
+        createdAt: data.createdAt,
+      });
+    });
+
+    return list;
+  } catch (err) {
+    console.error("Error fetching business tenants:", err);
+    return [];
+  }
+}
+
+export interface NewTenantInput {
+  fullName: string;
+  phone: string;
+  email?: string;
+  altPhone?: string;
+  gender: string;
+  dob?: string;
+  address?: string;
+  nationality: string;
+  motherTongue?: string;
+  idType: string;
+  idNumber: string;
+  officeInstituteName?: string;
+  officeInstituteId?: string;
+  emergencyName?: string;
+  emergencyPhone?: string;
+  relationship?: string;
+  propertyId: string;
+  propertyName: string;
+  roomId: string;
+  roomNumber: string;
+  floor: string;
+  bedIndex: number; // 0-based
+  bedNumber: string;
+  moveInDate: string; // YYYY-MM-DD
+  moveOutDate?: string;
+  monthlyRent: number;
+  securityDeposit: number;
+  maintenanceFee: number;
+  proratedRent?: number;
+  foodAddon: boolean;
+  foodPreference?: string;
+  paymentCycle: string;
+  tenantType: string;
+  paySecurityDepositNow: boolean;
+}
+
+/**
+ * Creates tenant, stay, updates bed occupancy, increments property occupancy, and creates enrollment request
+ * Matching Flutter AddTenantScreen and AddTenantViewModel exactly
+ */
+export async function createTenantWithStay(
+  businessId: string,
+  input: NewTenantInput
+): Promise<{ tenantId: string; stayId: string }> {
+  const tenantId = await generateSequentialTenantId();
+  const stayId = `stay_${Date.now()}`;
+  const now = serverTimestamp();
+
+  const tenantPayload = {
+    id: tenantId,
+    tenantId,
+    name: input.fullName.trim(),
+    fullName: input.fullName.trim(),
+    phone: input.phone.trim(),
+    email: (input.email || "").trim(),
+    altPhone: (input.altPhone || "").trim(),
+    gender: input.gender,
+    dateOfBirth: input.dob || "",
+    dob: input.dob || "",
+    address: (input.address || "").trim(),
+    currentAddress: (input.address || "").trim(),
+    nationality: input.nationality || "Indian",
+    motherTongue: input.motherTongue || "",
+    idType: input.idType,
+    idNumber: (input.idNumber || "").trim(),
+    officeInstituteName: (input.officeInstituteName || "").trim(),
+    officeInstituteId: (input.officeInstituteId || "").trim(),
+    emergencyName: (input.emergencyName || "").trim(),
+    emergencyPhone: (input.emergencyPhone || "").trim(),
+    relationship: input.relationship || "",
+    propertyId: input.propertyId,
+    propertyName: input.propertyName,
+    roomId: input.roomId,
+    roomNumber: input.roomNumber,
+    floor: input.floor,
+    bedId: input.bedNumber,
+    monthlyRent: input.monthlyRent,
+    securityDeposit: input.securityDeposit,
+    maintenanceFee: input.maintenanceFee,
+    proratedRent: input.proratedRent || 0,
+    checkInDate: input.moveInDate,
+    checkOutDate: input.moveOutDate || null,
+    moveInDate: input.moveInDate,
+    status: "active",
+    foodAddon: input.foodAddon,
+    foodPreference: input.foodPreference || "Both",
+    paymentCycle: input.paymentCycle,
+    tenantType: input.tenantType,
+    businessId,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // 1. Write to Master tenant doc
+  await setDoc(doc(db, "tenants", tenantId), tenantPayload);
+
+  // 2. Write to Business scoped tenants
+  await setDoc(doc(db, "businesses", businessId, "tenants", tenantId), tenantPayload);
+
+  // 3. Write stay record under tenant
+  const stayDocRef = doc(db, "tenants", tenantId, "stays", stayId);
+  await setDoc(stayDocRef, {
+    stayId,
+    tenantId,
+    propertyId: input.propertyId,
+    propertyName: input.propertyName,
+    roomId: input.roomId,
+    roomNumber: input.roomNumber,
+    bedId: input.bedNumber,
+    moveInDate: input.moveInDate,
+    moveOutDate: input.moveOutDate || null,
+    monthlyRent: input.monthlyRent,
+    securityDeposit: input.securityDeposit,
+    maintenanceFee: input.maintenanceFee,
+    status: "active",
+    businessId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // 4. Mark bed as occupied
+  try {
+    const bedRef = doc(
+      db,
+      "businesses",
+      businessId,
+      "properties",
+      input.propertyId,
+      "rooms",
+      input.roomId,
+      "beds",
+      input.bedNumber
+    );
+    await setDoc(
+      bedRef,
+      {
+        occupied: true,
+        isOccupied: true,
+        tenantId,
+        tenantName: input.fullName.trim(),
+        occupiedAt: now,
+        updatedAt: now,
+        status: "occupied",
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn("Could not set bed doc directly:", err);
+  }
+
+  // 5. Update property occupied bed count
+  try {
+    const propRef = doc(db, "businesses", businessId, "properties", input.propertyId);
+    await updateDoc(propRef, {
+      occupiedBeds: increment(1),
+      updatedAt: now,
+    });
+  } catch (err) {
+    console.warn("Could not increment occupiedBeds on property:", err);
+  }
+
+  // 6. Create confirmed enrollment request
+  try {
+    await addDoc(collection(db, "enrollmentRequests"), {
+      tenantId,
+      tenantName: input.fullName.trim(),
+      phone: input.phone.trim(),
+      email: input.email || "",
+      propertyId: input.propertyId,
+      propertyName: input.propertyName,
+      roomId: input.roomId,
+      bedId: input.bedNumber,
+      monthlyRent: input.monthlyRent,
+      securityDeposit: input.securityDeposit,
+      status: "confirmed",
+      moveInDate: input.moveInDate,
+      businessId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (err) {
+    console.warn("Could not create enrollment request record:", err);
+  }
+
+  return { tenantId, stayId };
 }
 
 // ─────────────────────────────────────────────
