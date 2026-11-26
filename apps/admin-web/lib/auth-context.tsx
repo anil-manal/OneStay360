@@ -151,17 +151,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const userRef = doc(db, "users", currentUser.uid);
           const snap = await getDoc(userRef);
+          let bId = "BUS0000001";
+          let bName = "OneStay";
+
           if (snap.exists()) {
             const data = snap.data();
+            bId = data.businessId || bId;
+            bName = data.businessName || bName;
+
             setUserProfile({
               uid: currentUser.uid,
               email: currentUser.email || data.email,
               phoneNumber: currentUser.phoneNumber || data.phoneNumber,
               displayName: currentUser.displayName || data.displayName,
-              userType: data.userType,
-              role: data.role,
-              businessId: data.businessId,
-              businessName: data.businessName,
+              userType: data.userType || "business",
+              role: data.role || "HOST",
+              businessId: bId,
+              businessName: bName,
               authProviders: data.authProviders,
             });
           } else {

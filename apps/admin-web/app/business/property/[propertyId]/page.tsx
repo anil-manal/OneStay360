@@ -4,6 +4,8 @@ import React, { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
+import { fetchPropertyWithLayout } from "@/lib/data-service";
 import {
   Building2,
   ArrowLeft,
@@ -153,11 +155,73 @@ const DEFAULT_LANDLORD_PROPERTY: LandlordPropertyDetails = {
 export default function LandlordPropertyConsolePage({ params }: { params: Promise<{ propertyId: string }> }) {
   const unwrappedParams = use(params);
   const propertyId = unwrappedParams.propertyId;
+  const { userProfile } = useAuth();
+  const businessId = userProfile?.businessId || "BUS0000001";
 
   const [property, setProperty] = useState<LandlordPropertyDetails>(DEFAULT_LANDLORD_PROPERTY);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"matrix" | "submeter" | "pricing" | "residents">("matrix");
   const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const { property: p, rooms: r } = await fetchPropertyWithLayout(businessId, propertyId);
+        if (p) {
+          const defaultSharing = [
+            { sharing: 1, nonAc: 14000, ac: 16000 },
+            { sharing: 2, nonAc: 9000, ac: 10500 },
+            { sharing: 3, nonAc: 7000, ac: 8500 },
+          ];
+          const newPricing: PropertyPricingData = {
+            maxSharing: p.pricing?.maxSharing || 3,
+            sharing: p.pricing?.sharing?.length ? p.pricing.sharing : defaultSharing,
+            securityDeposit: p.pricing?.securityDeposit || 5000,
+            oneTimeMaintenance: p.pricing?.oneTimeMaintenance || 1000,
+            maintenanceDeductedFromDeposit: true,
+          };
+          setPricingForm(newPricing);
+
+          setProperty({
+            id: p.id,
+            name: p.name,
+            city: p.city,
+            address: p.address,
+            totalRooms: p.totalRooms,
+            totalBeds: p.totalBeds,
+            occupiedBeds: p.occupiedBeds,
+            pricePerBed: p.pricing?.double || 9000,
+            pricing: newPricing,
+            rooms: r.length > 0 ? r.map((room) => ({
+              id: room.id,
+              roomNumber: room.roomNumber,
+              floor: Number(room.floor) || 1,
+              hasAC: room.hasAC,
+              sharingType: room.sharingType,
+              submeterPrev: 1240,
+              submeterCurr: 1385,
+              submeterRate: 12,
+              beds: room.beds?.map((b) => ({
+                id: b.id,
+                bedNumber: b.bedNumber,
+                status: b.isOccupied ? "occupied" : "vacant",
+                tenantName: b.tenantName,
+                tenantPhone: b.tenantPhone,
+                monthlyRent: p.pricing?.double || 9000,
+                kycVerified: true,
+              })) || [],
+            })) : DEFAULT_ROOMS,
+          });
+        }
+      } catch (err) {
+        console.error("Error loading property details from Firestore:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [businessId, propertyId]);
 
   // Bed modal state
   const [selectedBedModal, setSelectedBedModal] = useState<{ room: RoomInfo; bed: BedInfo } | null>(null);

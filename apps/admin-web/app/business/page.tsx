@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import { fetchBusinessProperties, PropertyData } from "@/lib/data-service";
 import {
   Building2,
   Bed,
@@ -18,413 +20,356 @@ import {
   QrCode,
   ShieldCheck,
   Search,
+  RefreshCw,
 } from "lucide-react";
 
-interface LandlordPropertySummary {
-  id: string;
-  name: string;
-  city: string;
-  address: string;
-  totalRooms: number;
-  totalBeds: number;
-  occupiedBeds: number;
-  monthlyGmv: number;
-  pendingMeterReadings: number;
-  pendingCheckIns: number;
-  complianceOk: boolean;
-}
-
-const DEFAULT_LANDLORD_PROPERTIES: LandlordPropertySummary[] = [
-  {
-    id: "PROP_AMD_032",
-    name: "Zolo CyberPark Premier Residency",
-    city: "Ahmedabad",
-    address: "Plot 42, SG Highway, Bodakdev",
-    totalRooms: 12,
-    totalBeds: 36,
-    occupiedBeds: 31,
-    monthlyGmv: 279000,
-    pendingMeterReadings: 2,
-    pendingCheckIns: 1,
-    complianceOk: true,
-  },
-  {
-    id: "PROP_PNQ_104",
-    name: "Zolo TechZone Luxury Stays",
-    city: "Pune",
-    address: "Phase 1, Hinjewadi IT Park",
-    totalRooms: 18,
-    totalBeds: 54,
-    occupiedBeds: 49,
-    monthlyGmv: 441000,
-    pendingMeterReadings: 0,
-    pendingCheckIns: 2,
-    complianceOk: true,
-  },
-  {
-    id: "PROP_BLR_208",
-    name: "Zolo Nexus Hive Co-Living",
-    city: "Bangalore",
-    address: "Green Glen Layout, Bellandur",
-    totalRooms: 24,
-    totalBeds: 72,
-    occupiedBeds: 68,
-    monthlyGmv: 680000,
-    pendingMeterReadings: 3,
-    pendingCheckIns: 0,
-    complianceOk: true,
-  },
-  {
-    id: "PROP_HYD_315",
-    name: "Zolo Silicon Heights",
-    city: "Hyderabad",
-    address: "Financial District, Gachibowli",
-    totalRooms: 26,
-    totalBeds: 78,
-    occupiedBeds: 63,
-    monthlyGmv: 598500,
-    pendingMeterReadings: 1,
-    pendingCheckIns: 1,
-    complianceOk: true,
-  },
-];
-
 export default function BusinessDashboardPage() {
-  const [properties, setProperties] = useState<LandlordPropertySummary[]>(DEFAULT_LANDLORD_PROPERTIES);
+  const { userProfile } = useAuth();
+  const businessId = userProfile?.businessId || "BUS0000001";
+  const businessName = userProfile?.businessName || "OneStay";
+
+  const [properties, setProperties] = useState<PropertyData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await fetchBusinessProperties(businessId);
+    setProperties(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [businessId]);
 
   const totalBeds = properties.reduce((sum, p) => sum + p.totalBeds, 0);
   const totalOccupied = properties.reduce((sum, p) => sum + p.occupiedBeds, 0);
-  const occupancyPercent = Math.round((totalOccupied / totalBeds) * 100);
-  const totalMonthlyGmv = properties.reduce((sum, p) => sum + p.monthlyGmv, 0);
-  const totalPendingMeters = properties.reduce((sum, p) => sum + p.pendingMeterReadings, 0);
+  const occupancyPercent = totalBeds > 0 ? Math.round((totalOccupied / totalBeds) * 100) : 0;
+  const totalMonthlyGmv = properties.reduce((sum, p) => sum + (p.monthlyGmv || 0), 0);
+  const totalPendingMeters = properties.reduce((sum, p) => sum + (p.pendingMeterReadings || 0), 0);
 
-  const filteredProperties = properties.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredProperties = properties.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-      {/* Top Banner & Welcome */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+    <div style={{ maxWidth: "1400px", margin: "0 auto", paddingBottom: "60px" }}>
+      {/* Top Banner */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: "28px",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <span style={{ fontSize: "11px", fontWeight: 800, color: "#059669", background: "#ECFDF5", padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase" }}>
-              PG Chain Live Operations
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#059669",
+                background: "#ECFDF5",
+                padding: "2px 8px",
+                borderRadius: "6px",
+              }}
+            >
+              LIVE OPERATING PULSE
+            </span>
+            <span style={{ fontSize: "12px", color: "#64748B" }}>
+              Active Chain: <strong>{businessName}</strong> ({businessId})
             </span>
           </div>
-          <h1 style={{ fontSize: "24px", fontWeight: 900, color: "#0F172A", margin: 0 }}>
+          <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px", margin: 0 }}>
             Landlord Operations Pulse
           </h1>
-          <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0 0" }}>
-            Real-time occupancy, automated rent realizations, submeter utilities, and tenant onboarding across your properties.
+          <p style={{ fontSize: "14px", color: "#64748B", margin: "4px 0 0 0" }}>
+            Real-time occupancy, rent realization, submeter units, and resident police verification compliance.
           </p>
         </div>
 
         <div style={{ display: "flex", gap: "10px" }}>
-          <Link
-            href="/business/properties"
-            className="btnPrimary"
+          <button
+            onClick={loadData}
             style={{
-              padding: "10px 18px",
-              borderRadius: "8px",
-              background: "#059669",
-              color: "#FFFFFF",
-              fontSize: "13px",
-              fontWeight: 700,
-              textDecoration: "none",
               display: "flex",
               alignItems: "center",
               gap: "6px",
+              padding: "10px 14px",
+              background: "#FFFFFF",
+              color: "#334155",
+              border: "1px solid #CBD5E1",
+              borderRadius: "10px",
+              fontWeight: 600,
+              fontSize: "13px",
+              cursor: "pointer",
             }}
           >
-            <Plus size={16} /> Add New Property
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Live Data
+          </button>
+          <Link
+            href="/business/properties"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 18px",
+              background: "#059669",
+              color: "#FFFFFF",
+              borderRadius: "10px",
+              fontWeight: 700,
+              fontSize: "13px",
+              textDecoration: "none",
+              boxShadow: "0 2px 4px rgba(5,150,105,0.2)",
+            }}
+          >
+            <Plus size={16} /> Manage Properties
           </Link>
         </div>
       </div>
 
-      {/* KPI METRICS OVERVIEW */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-        <div style={{ background: "#FFFFFF", padding: "20px", borderRadius: "14px", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>Occupancy Rate</span>
-            <Bed size={18} color="#059669" />
+      {/* Aggregate KPI Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "32px",
+        }}
+      >
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "14px",
+            padding: "20px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          }}
+        >
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+            Network Bed Occupancy
           </div>
-          <div style={{ fontSize: "28px", fontWeight: 900, color: "#0F172A", marginTop: "8px" }}>
+          <div style={{ fontSize: "28px", fontWeight: 900, color: "#0F172A", marginTop: "6px" }}>
             {occupancyPercent}%
           </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
-            <strong>{totalOccupied}</strong> of {totalBeds} total beds filled
-          </div>
-        </div>
-
-        <div style={{ background: "#FFFFFF", padding: "20px", borderRadius: "14px", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>Monthly Realization</span>
-            <TrendingUp size={18} color="var(--teal-primary)" />
-          </div>
-          <div style={{ fontSize: "28px", fontWeight: 900, color: "var(--teal-primary)", marginTop: "8px" }}>
-            ₹{(totalMonthlyGmv / 100000).toFixed(1)} Lakhs
-          </div>
           <div style={{ fontSize: "12px", color: "#059669", fontWeight: 600, marginTop: "4px" }}>
-            Auto-collected via Cashfree UPI &bull; T+1 Payout
+            {totalOccupied} of {totalBeds} Beds Occupied
           </div>
         </div>
 
-        <div style={{ background: "#FFFFFF", padding: "20px", borderRadius: "14px", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>Submeter Readings Due</span>
-            <Zap size={18} color="#D97706" />
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "14px",
+            padding: "20px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          }}
+        >
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+            Monthly Realized GMV
           </div>
-          <div style={{ fontSize: "28px", fontWeight: 900, color: "#D97706", marginTop: "8px" }}>
-            {totalPendingMeters} Rooms
+          <div style={{ fontSize: "28px", fontWeight: 900, color: "#059669", marginTop: "6px" }}>
+            ₹{totalMonthlyGmv.toLocaleString("en-IN")}
           </div>
           <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
-            Pending monthly electric unit log
+            From active resident tariffs
           </div>
         </div>
 
-        <div style={{ background: "#FFFFFF", padding: "20px", borderRadius: "14px", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "12px", color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>Active Properties</span>
-            <Building2 size={18} color="#6366F1" />
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "14px",
+            padding: "20px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          }}
+        >
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+            Available Vacant Beds
           </div>
-          <div style={{ fontSize: "28px", fontWeight: 900, color: "#6366F1", marginTop: "8px" }}>
-            {properties.length} Branches
+          <div style={{ fontSize: "28px", fontWeight: 900, color: "#2563EB", marginTop: "6px" }}>
+            {totalBeds - totalOccupied}
           </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
-            Operating across 4 Indian cities
+          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>Ready for instant booking</div>
+        </div>
+
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: "14px",
+            padding: "20px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          }}
+        >
+          <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+            Total PG Branches
+          </div>
+          <div style={{ fontSize: "28px", fontWeight: 900, color: "#0F172A", marginTop: "6px" }}>
+            {properties.length}
+          </div>
+          <div style={{ fontSize: "12px", color: "#16A34A", marginTop: "4px" }}>
+            Registered in OneStay360
           </div>
         </div>
       </div>
 
-      {/* TODAY'S OPERATIONAL ACTIONS & ARRIVALS */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px" }}>
-        {/* Left: Pending Actions Feed */}
-        <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0F172A" }}>
-              Immediate Operations Feed
-            </h3>
-            <span style={{ fontSize: "12px", color: "#64748B" }}>3 Actions Pending Today</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#F8FAFC", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "38px", height: "38px", borderRadius: "8px", background: "#ECFDF5", display: "flex", alignItems: "center", justifyContent: "center", color: "#059669" }}>
-                  <ShieldCheck size={20} />
-                </div>
-                <div>
-                  <strong style={{ fontSize: "13px", color: "#0F172A" }}>New Resident Check-in: Rohan Verma</strong>
-                  <div style={{ fontSize: "12px", color: "#64748B" }}>
-                    Room 102 &bull; Bed B1 &bull; Verified OneStay360 Passport Presented
-                  </div>
-                </div>
-              </div>
-              <Link
-                href="/business/property/PROP_AMD_032"
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "6px",
-                  background: "#059669",
-                  color: "#FFFFFF",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  textDecoration: "none",
-                }}
-              >
-                Instant Check-in &rarr;
-              </Link>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#F8FAFC", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "38px", height: "38px", borderRadius: "8px", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", color: "#D97706" }}>
-                  <Zap size={20} />
-                </div>
-                <div>
-                  <strong style={{ fontSize: "13px", color: "#0F172A" }}>Log Submeter Units (Floor 2, SG Highway PG)</strong>
-                  <div style={{ fontSize: "12px", color: "#64748B" }}>
-                    Rooms 201, 202, 203 require current meter dial readings
-                  </div>
-                </div>
-              </div>
-              <Link
-                href="/business/property/PROP_AMD_032?tab=submeter"
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "6px",
-                  border: "1px solid #CBD5E1",
-                  background: "#FFFFFF",
-                  color: "#0F172A",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  textDecoration: "none",
-                }}
-              >
-                Log Readings &rarr;
-              </Link>
-            </div>
+      {/* Property Roster Section */}
+      <div style={{ marginBottom: "32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <div>
+            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
+              Live Properties in Your Chain
+            </h2>
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "2px 0 0 0" }}>
+              Select a property branch to open its interactive Bed Matrix Console.
+            </p>
           </div>
         </div>
 
-        {/* Right: Universal Passport QR Scanner Box */}
-        <div style={{ background: "linear-gradient(135deg, #065F46 0%, #047857 100%)", borderRadius: "16px", padding: "24px", color: "#FFFFFF", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <QrCode size={20} />
-              <span style={{ fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px" }}>
-                1-Click Check-In
-              </span>
-            </div>
-            <h4 style={{ fontSize: "18px", fontWeight: 900, margin: "0 0 8px 0" }}>
-              Scan Tenant Resident Passport
-            </h4>
-            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", margin: 0, lineHeight: 1.5 }}>
-              Incoming guests who already completed KYC on OneStay360 can be checked in instantly. No paperwork or manual Form 29 typing required.
-            </p>
+        {loading && (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "#64748B" }}>
+            Loading properties from Firestore...
           </div>
+        )}
 
-          <div style={{ marginTop: "20px" }}>
+        {!loading && filteredProperties.length === 0 && (
+          <div
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E2E8F0",
+              borderRadius: "14px",
+              padding: "40px",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ color: "#64748B", fontSize: "14px" }}>No properties registered yet.</p>
             <Link
-              href="/business/property/PROP_AMD_032"
+              href="/business/properties"
               style={{
-                display: "block",
-                textAlign: "center",
-                padding: "10px",
+                display: "inline-block",
+                marginTop: "10px",
+                padding: "8px 16px",
+                background: "#059669",
+                color: "#FFFFFF",
                 borderRadius: "8px",
-                background: "#FFFFFF",
-                color: "#065F46",
-                fontWeight: 800,
+                fontWeight: 700,
                 fontSize: "13px",
                 textDecoration: "none",
               }}
             >
-              Open Bed Allocation Scanner &rarr;
+              Add First Property
             </Link>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* PROPERTIES PORTFOLIO TABLE */}
-      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-          <div>
-            <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0, color: "#0F172A" }}>
-              Your Properties &amp; Branches ({properties.length})
-            </h3>
-            <p style={{ fontSize: "12px", color: "#64748B", margin: "2px 0 0 0" }}>
-              Click any property to open the Interactive Bed Matrix, adjust dynamic sharing prices, or record submeters.
-            </p>
-          </div>
-
-          <div style={{ position: "relative", minWidth: "260px" }}>
-            <Search size={14} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#64748B" }} />
-            <input
-              type="text"
-              placeholder="Search branch name, city..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 12px 8px 34px",
-                borderRadius: "8px",
-                border: "1px solid #CBD5E1",
-                fontSize: "13px",
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="tableWrapper">
-          <table className="adminTable">
-            <thead>
-              <tr>
-                <th>Property Branch</th>
-                <th>City &bull; Location</th>
-                <th>Occupancy (Beds)</th>
-                <th>Monthly Collection</th>
-                <th>Pending Tasks</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProperties.map((p) => {
-                const occRate = Math.round((p.occupiedBeds / p.totalBeds) * 100);
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <Link
-                        href={`/business/property/${p.id}`}
-                        style={{ fontWeight: 800, color: "#0F172A", textDecoration: "none" }}
-                        className="hoverUnderline"
-                      >
-                        {p.name} &rarr;
-                      </Link>
-                      <span className="subtext" style={{ display: "block" }}>
-                        ID: {p.id} &bull; {p.totalRooms} Rooms
-                      </span>
-                    </td>
-
-                    <td>
-                      <strong>{p.city}</strong>
-                      <span className="subtext" style={{ display: "block" }}>{p.address}</span>
-                    </td>
-
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <strong>{occRate}%</strong>
-                        <span style={{ fontSize: "12px", color: "#64748B" }}>
-                          ({p.occupiedBeds}/{p.totalBeds} Beds)
-                        </span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <strong style={{ color: "#059669" }}>₹{p.monthlyGmv.toLocaleString("en-IN")}</strong>
-                      <span className="subtext" style={{ display: "block" }}>Cashfree AutoCollect</span>
-                    </td>
-
-                    <td>
-                      {p.pendingMeterReadings > 0 ? (
-                        <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "12px", background: "#FEF3C7", color: "#D97706", fontWeight: 700 }}>
-                          {p.pendingMeterReadings} Meters Due
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "12px", background: "#ECFDF5", color: "#059669", fontWeight: 700 }}>
-                          All Tasks Clear
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ textAlign: "right" }}>
-                      <Link
-                        href={`/business/property/${p.id}`}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "16px" }}>
+          {filteredProperties.map((prop) => {
+            const occ = prop.totalBeds > 0 ? Math.round((prop.occupiedBeds / prop.totalBeds) * 100) : 0;
+            return (
+              <div
+                key={prop.id}
+                style={{
+                  background: "#FFFFFF",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: "14px",
+                  padding: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <span
                         style={{
-                          padding: "6px 14px",
-                          borderRadius: "6px",
-                          background: "#059669",
-                          color: "#FFFFFF",
-                          fontSize: "12px",
+                          fontSize: "11px",
                           fontWeight: 700,
-                          textDecoration: "none",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
+                          color: "#059669",
+                          background: "#ECFDF5",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
                         }}
                       >
-                        Manage Property &rarr;
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        {prop.id}
+                      </span>
+                      <h3 style={{ fontSize: "17px", fontWeight: 800, color: "#0F172A", margin: "6px 0 2px 0" }}>
+                        {prop.name}
+                      </h3>
+                      <div style={{ fontSize: "12px", color: "#64748B", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <MapPin size={12} color="#94A3B8" /> {prop.address}, {prop.city}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "16px", marginBottom: "14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                      <span style={{ fontWeight: 600, color: "#334155" }}>
+                        Occupancy: {prop.occupiedBeds} / {prop.totalBeds} Beds
+                      </span>
+                      <span style={{ fontWeight: 800, color: "#059669" }}>{occ}%</span>
+                    </div>
+                    <div style={{ width: "100%", height: "8px", background: "#E2E8F0", borderRadius: "999px", overflow: "hidden" }}>
+                      <div
+                        style={{
+                          width: `${occ}%`,
+                          height: "100%",
+                          background: occ > 80 ? "#059669" : "#2563EB",
+                          borderRadius: "999px",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", borderTop: "1px solid #F1F5F9", paddingTop: "14px" }}>
+                  <Link
+                    href={`/business/property/${prop.id}`}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "8px 12px",
+                      background: "#059669",
+                      color: "#FFFFFF",
+                      borderRadius: "8px",
+                      fontWeight: 700,
+                      fontSize: "12px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Bed size={14} /> Open Bed Matrix
+                  </Link>
+                  <Link
+                    href={`/business/billing`}
+                    style={{
+                      padding: "8px 14px",
+                      border: "1px solid #CBD5E1",
+                      borderRadius: "8px",
+                      background: "#FFFFFF",
+                      color: "#334155",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Billing
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

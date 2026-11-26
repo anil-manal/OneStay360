@@ -1,7 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+import {
+  fetchBusinessProperties,
+  createBusinessProperty,
+  PropertyData,
+} from "@/lib/data-service";
 import {
   Building2,
   Bed,
@@ -16,106 +22,49 @@ import {
   CheckCircle2,
   ArrowRight,
   Filter,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 
-interface LandlordProperty {
-  id: string;
-  name: string;
-  city: string;
-  address: string;
-  totalRooms: number;
-  totalBeds: number;
-  occupiedBeds: number;
-  monthlyGmv: number;
-  pendingMeterReadings: number;
-  pendingCheckIns: number;
-  wardenName: string;
-  wardenPhone: string;
-  status: "active" | "full" | "maintenance";
-}
-
-const INITIAL_PROPERTIES: LandlordProperty[] = [
-  {
-    id: "PROP_AMD_032",
-    name: "Zolo CyberPark Premier Residency",
-    city: "Ahmedabad",
-    address: "Plot 42, SG Highway, Bodakdev",
-    totalRooms: 12,
-    totalBeds: 36,
-    occupiedBeds: 31,
-    monthlyGmv: 279000,
-    pendingMeterReadings: 2,
-    pendingCheckIns: 1,
-    wardenName: "Ramesh Patel",
-    wardenPhone: "+91 98250 11223",
-    status: "active",
-  },
-  {
-    id: "PROP_PNQ_104",
-    name: "Zolo TechZone Luxury Stays",
-    city: "Pune",
-    address: "Phase 1, Hinjewadi IT Park",
-    totalRooms: 18,
-    totalBeds: 54,
-    occupiedBeds: 49,
-    monthlyGmv: 441000,
-    pendingMeterReadings: 0,
-    pendingCheckIns: 2,
-    wardenName: "Sanjay Deshmukh",
-    wardenPhone: "+91 99220 33445",
-    status: "active",
-  },
-  {
-    id: "PROP_BLR_208",
-    name: "Zolo Nexus Hive Co-Living",
-    city: "Bangalore",
-    address: "Green Glen Layout, Bellandur",
-    totalRooms: 24,
-    totalBeds: 72,
-    occupiedBeds: 68,
-    monthlyGmv: 680000,
-    pendingMeterReadings: 3,
-    pendingCheckIns: 0,
-    wardenName: "Venkat Rao",
-    wardenPhone: "+91 98450 55667",
-    status: "active",
-  },
-  {
-    id: "PROP_HYD_315",
-    name: "Zolo Silicon Heights",
-    city: "Hyderabad",
-    address: "Financial District, Gachibowli",
-    totalRooms: 26,
-    totalBeds: 78,
-    occupiedBeds: 63,
-    monthlyGmv: 598500,
-    pendingMeterReadings: 1,
-    pendingCheckIns: 1,
-    wardenName: "Kalyan Reddy",
-    wardenPhone: "+91 98660 77889",
-    status: "active",
-  },
-];
-
 export default function BusinessPropertiesPage() {
-  const [properties, setProperties] = useState<LandlordProperty[]>(INITIAL_PROPERTIES);
+  const { userProfile, user } = useAuth();
+  const businessId = userProfile?.businessId || "BUS0000001";
+  const businessName = userProfile?.businessName || "OneStay";
+
+  const [properties, setProperties] = useState<PropertyData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // New property form state
   const [newPropName, setNewPropName] = useState("");
   const [newPropCity, setNewPropCity] = useState("Pune");
   const [newPropAddress, setNewPropAddress] = useState("");
-  const [newPropRooms, setNewPropRooms] = useState("10");
-  const [newPropBeds, setNewPropBeds] = useState("30");
-  const [newWardenName, setNewWardenName] = useState("");
-  const [newWardenPhone, setNewWardenPhone] = useState("");
+  const [newPropRooms, setNewPropRooms] = useState("4");
+  const [newPropBeds, setNewPropBeds] = useState("12");
+  const [newSinglePrice, setNewSinglePrice] = useState("16000");
+  const [newDoublePrice, setNewDoublePrice] = useState("9000");
+  const [newTriplePrice, setNewTriplePrice] = useState("7000");
+  const [newWardenName, setNewWardenName] = useState("Ramesh Patel");
+  const [newWardenPhone, setNewWardenPhone] = useState("+91 93593 03097");
+
+  const loadProperties = async () => {
+    setLoading(true);
+    const data = await fetchBusinessProperties(businessId);
+    setProperties(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadProperties();
+  }, [businessId]);
 
   const totalBeds = properties.reduce((s, p) => s + p.totalBeds, 0);
   const totalOccupied = properties.reduce((s, p) => s + p.occupiedBeds, 0);
-  const totalGmv = properties.reduce((s, p) => s + p.monthlyGmv, 0);
-  const overallOccupancy = Math.round((totalOccupied / totalBeds) * 100);
+  const totalGmv = properties.reduce((s, p) => s + (p.monthlyGmv || 0), 0);
+  const overallOccupancy = totalBeds > 0 ? Math.round((totalOccupied / totalBeds) * 100) : 0;
 
   const filteredProperties = properties.filter((p) => {
     const matchesSearch =
@@ -126,33 +75,40 @@ export default function BusinessPropertiesPage() {
     return matchesSearch && matchesCity;
   });
 
-  const handleAddProperty = (e: React.FormEvent) => {
+  const handleAddProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPropName || !newPropAddress) return;
+    setIsSubmitting(true);
 
-    const newId = `PROP_${newPropCity.slice(0, 3).toUpperCase()}_${Math.floor(100 + Math.random() * 900)}`;
-    const newProperty: LandlordProperty = {
-      id: newId,
-      name: newPropName,
-      city: newPropCity,
-      address: newPropAddress,
-      totalRooms: parseInt(newPropRooms) || 10,
-      totalBeds: parseInt(newPropBeds) || 30,
-      occupiedBeds: 0,
-      monthlyGmv: 0,
-      pendingMeterReadings: 0,
-      pendingCheckIns: 0,
-      wardenName: newWardenName || "Unassigned",
-      wardenPhone: newWardenPhone || "-",
-      status: "active",
-    };
+    try {
+      await createBusinessProperty(businessId, {
+        name: newPropName,
+        city: newPropCity,
+        address: newPropAddress,
+        totalRooms: parseInt(newPropRooms) || 4,
+        totalBeds: parseInt(newPropBeds) || 12,
+        occupiedBeds: 0,
+        wardenName: newWardenName,
+        wardenPhone: newWardenPhone,
+        pricing: {
+          single: parseInt(newSinglePrice) || 16000,
+          double: parseInt(newDoublePrice) || 9000,
+          triple: parseInt(newTriplePrice) || 7000,
+          securityDeposit: 5000,
+          oneTimeMaintenance: 1000,
+        },
+      });
 
-    setProperties([newProperty, ...properties]);
-    setIsAddModalOpen(false);
-    setNewPropName("");
-    setNewPropAddress("");
-    setNewWardenName("");
-    setNewWardenPhone("");
+      await loadProperties();
+      setIsAddModalOpen(false);
+      setNewPropName("");
+      setNewPropAddress("");
+    } catch (err) {
+      console.error("Error creating property:", err);
+      alert("Failed to save property to Firestore: " + (err as any).message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -164,6 +120,8 @@ export default function BusinessPropertiesPage() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           marginBottom: "28px",
+          flexWrap: "wrap",
+          gap: "16px",
         }}
       >
         <div>
@@ -178,37 +136,59 @@ export default function BusinessPropertiesPage() {
                 borderRadius: "6px",
               }}
             >
-              PORTFOLIO MANAGEMENT
+              LIVE FIRESTORE DATABASE
             </span>
-            <span style={{ fontSize: "12px", color: "#64748B" }}>{properties.length} Active Branches</span>
+            <span style={{ fontSize: "12px", color: "#64748B" }}>
+              Business ID: <strong>{businessId}</strong> ({businessName})
+            </span>
           </div>
           <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#0F172A", letterSpacing: "-0.5px", margin: 0 }}>
             Properties & Inventory
           </h1>
           <p style={{ fontSize: "14px", color: "#64748B", margin: "4px 0 0 0" }}>
-            Manage room bed layouts, pricing plans, submeter meters, and local resident directories.
+            Real-time synchronization with your OneStay360 mobile business application.
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 18px",
-            background: "#059669",
-            color: "#FFFFFF",
-            border: "none",
-            borderRadius: "10px",
-            fontWeight: 700,
-            fontSize: "13px",
-            cursor: "pointer",
-            boxShadow: "0 2px 4px rgba(5,150,105,0.2)",
-          }}
-        >
-          <Plus size={16} /> Add New Property
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            onClick={loadProperties}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "10px 14px",
+              background: "#FFFFFF",
+              color: "#334155",
+              border: "1px solid #CBD5E1",
+              borderRadius: "10px",
+              fontWeight: 600,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 18px",
+              background: "#059669",
+              color: "#FFFFFF",
+              border: "none",
+              borderRadius: "10px",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+              boxShadow: "0 2px 4px rgba(5,150,105,0.2)",
+            }}
+          >
+            <Plus size={16} /> Add New Property
+          </button>
+        </div>
       </div>
 
       {/* Aggregate Stats */}
@@ -230,12 +210,14 @@ export default function BusinessPropertiesPage() {
           }}
         >
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Total Properties
+            Active Properties
           </div>
           <div style={{ fontSize: "26px", fontWeight: 900, color: "#0F172A", marginTop: "6px" }}>
             {properties.length}
           </div>
-          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>Across 4 Major Metros</div>
+          <div style={{ fontSize: "12px", color: "#64748B", marginTop: "4px" }}>
+            Under {businessName}
+          </div>
         </div>
 
         <div
@@ -268,13 +250,13 @@ export default function BusinessPropertiesPage() {
           }}
         >
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Portfolio Monthly GMV
+            Monthly Realized GMV
           </div>
           <div style={{ fontSize: "26px", fontWeight: 900, color: "#0F172A", marginTop: "6px" }}>
             ₹{totalGmv.toLocaleString("en-IN")}
           </div>
           <div style={{ fontSize: "12px", color: "#16A34A", marginTop: "4px" }}>
-            +4.2% from previous month
+            Live tariff revenue calculation
           </div>
         </div>
 
@@ -288,7 +270,7 @@ export default function BusinessPropertiesPage() {
           }}
         >
           <div style={{ fontSize: "12px", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
-            Vacant Beds Available
+            Available Beds
           </div>
           <div style={{ fontSize: "26px", fontWeight: 900, color: "#2563EB", marginTop: "6px" }}>
             {totalBeds - totalOccupied} Beds
@@ -349,22 +331,66 @@ export default function BusinessPropertiesPage() {
             }}
           >
             <option value="all">All Cities</option>
-            <option value="Ahmedabad">Ahmedabad</option>
             <option value="Pune">Pune</option>
             <option value="Bangalore">Bangalore</option>
+            <option value="Ahmedabad">Ahmedabad</option>
             <option value="Hyderabad">Hyderabad</option>
           </select>
         </div>
 
         <div style={{ fontSize: "13px", color: "#64748B" }}>
-          Showing <b>{filteredProperties.length}</b> properties
+          Showing <b>{filteredProperties.length}</b> live properties in Firestore
         </div>
       </div>
+
+      {/* Loading indicator */}
+      {loading && (
+        <div style={{ padding: "60px 0", textAlign: "center", color: "#64748B" }}>
+          <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>Loading Properties from Database...</div>
+          <p style={{ fontSize: "13px", color: "#94A3B8", margin: 0 }}>Connecting to Firestore businesses/{businessId}/properties</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && filteredProperties.length === 0 && (
+        <div
+          style={{
+            background: "#FFFFFF",
+            borderRadius: "16px",
+            border: "1px solid #E2E8F0",
+            padding: "60px 20px",
+            textAlign: "center",
+          }}
+        >
+          <Building2 size={48} color="#94A3B8" style={{ margin: "0 auto 16px auto" }} />
+          <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#0F172A", margin: "0 0 6px 0" }}>
+            No Properties Found
+          </h3>
+          <p style={{ fontSize: "14px", color: "#64748B", margin: "0 0 20px 0" }}>
+            Register your first PG property to start managing rooms, beds, and rent realization.
+          </p>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            style={{
+              padding: "10px 20px",
+              background: "#059669",
+              color: "#FFFFFF",
+              border: "none",
+              borderRadius: "8px",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            Add Property Now
+          </button>
+        </div>
+      )}
 
       {/* Property Cards Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: "20px" }}>
         {filteredProperties.map((prop) => {
-          const occPercent = Math.round((prop.occupiedBeds / prop.totalBeds) * 100);
+          const occPercent = prop.totalBeds > 0 ? Math.round((prop.occupiedBeds / prop.totalBeds) * 100) : 0;
           return (
             <div
               key={prop.id}
@@ -398,7 +424,7 @@ export default function BusinessPropertiesPage() {
                       {prop.name}
                     </h3>
                     <div style={{ fontSize: "12px", color: "#64748B", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <MapPin size={13} color="#94A3B8" /> {prop.address}, {prop.city}
+                      <MapPin size={13} color="#94A3B8" /> {prop.address}, {prop.city} {prop.pincode ? `(${prop.pincode})` : ""}
                     </div>
                   </div>
                 </div>
@@ -416,7 +442,7 @@ export default function BusinessPropertiesPage() {
                       style={{
                         width: `${occPercent}%`,
                         height: "100%",
-                        background: occPercent > 85 ? "#059669" : occPercent > 60 ? "#2563EB" : "#F59E0B",
+                        background: occPercent > 85 ? "#059669" : occPercent > 50 ? "#2563EB" : "#F59E0B",
                         borderRadius: "999px",
                       }}
                     />
@@ -436,30 +462,24 @@ export default function BusinessPropertiesPage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: "11px", color: "#64748B" }}>Monthly GMV</div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, color: "#0F172A" }}>
-                      ₹{prop.monthlyGmv.toLocaleString("en-IN")}
+                    <div style={{ fontSize: "11px", color: "#64748B" }}>Tariff Plan</div>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0F172A" }}>
+                      Double: ₹{prop.pricing?.double?.toLocaleString("en-IN") || "9,000"}/mo
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "11px", color: "#64748B" }}>Total Rooms</div>
-                    <div style={{ fontSize: "15px", fontWeight: 800, color: "#0F172A" }}>{prop.totalRooms} Rooms</div>
+                    <div style={{ fontSize: "11px", color: "#64748B" }}>Total Capacity</div>
+                    <div style={{ fontSize: "13px", fontWeight: 800, color: "#0F172A" }}>
+                      {prop.totalRooms} Rooms • {prop.totalBeds} Beds
+                    </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "11px", color: "#64748B" }}>On-Site Warden</div>
+                    <div style={{ fontSize: "11px", color: "#64748B" }}>Warden / Manager</div>
                     <div style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>{prop.wardenName}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: "11px", color: "#64748B" }}>Pending Meters</div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        color: prop.pendingMeterReadings > 0 ? "#EA580C" : "#059669",
-                      }}
-                    >
-                      {prop.pendingMeterReadings > 0 ? `${prop.pendingMeterReadings} Needs Log` : "Up to date"}
-                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748B" }}>Contact Phone</div>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#059669" }}>{prop.wardenPhone}</div>
                   </div>
                 </div>
               </div>
@@ -554,7 +574,7 @@ export default function BusinessPropertiesPage() {
                   Add New PG Property
                 </h3>
                 <div style={{ fontSize: "12px", color: "#64748B" }}>
-                  Register a new branch under your landlord partner account
+                  Saves directly to Firestore under <strong>{businessId}</strong>
                 </div>
               </div>
             </div>
@@ -567,7 +587,7 @@ export default function BusinessPropertiesPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Zolo Silicon Elite Residency"
+                  placeholder="e.g. Ram Nivas PG 2"
                   value={newPropName}
                   onChange={(e) => setNewPropName(e.target.value)}
                   style={{
@@ -603,13 +623,13 @@ export default function BusinessPropertiesPage() {
                     <option value="Bangalore">Bangalore</option>
                     <option value="Ahmedabad">Ahmedabad</option>
                     <option value="Hyderabad">Hyderabad</option>
-                    <option value="Delhi NCR">Delhi NCR</option>
+                    <option value="Mumbai">Mumbai</option>
                   </select>
                 </div>
 
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Initial Bed Capacity
+                    Total Beds
                   </label>
                   <input
                     type="number"
@@ -629,12 +649,12 @@ export default function BusinessPropertiesPage() {
 
               <div style={{ marginBottom: "14px" }}>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Street Address & Landmark *
+                  Street Address & Locality *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Near Symbiosis Gate, Viman Nagar"
+                  placeholder="e.g. Near IT Park Phase 1, Hinjawadi"
                   value={newPropAddress}
                   onChange={(e) => setNewPropAddress(e.target.value)}
                   style={{
@@ -648,43 +668,38 @@ export default function BusinessPropertiesPage() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", marginBottom: "14px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Warden Name
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Single Rent (₹)
                   </label>
                   <input
-                    type="text"
-                    placeholder="e.g. Manoj Sharma"
-                    value={newWardenName}
-                    onChange={(e) => setNewWardenName(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                    }}
+                    type="number"
+                    value={newSinglePrice}
+                    onChange={(e) => setNewSinglePrice(e.target.value)}
+                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Warden Phone
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Double Rent (₹)
                   </label>
                   <input
-                    type="tel"
-                    placeholder="+91 98XXX XXXXX"
-                    value={newWardenPhone}
-                    onChange={(e) => setNewWardenPhone(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "9px 12px",
-                      border: "1px solid #CBD5E1",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      outline: "none",
-                    }}
+                    type="number"
+                    value={newDoublePrice}
+                    onChange={(e) => setNewDoublePrice(e.target.value)}
+                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Triple Rent (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={newTriplePrice}
+                    onChange={(e) => setNewTriplePrice(e.target.value)}
+                    style={{ width: "100%", padding: "8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
                   />
                 </div>
               </div>
@@ -708,6 +723,7 @@ export default function BusinessPropertiesPage() {
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   style={{
                     padding: "10px 20px",
                     borderRadius: "8px",
@@ -719,7 +735,7 @@ export default function BusinessPropertiesPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Create Property
+                  {isSubmitting ? "Creating in Firestore..." : "Create Property"}
                 </button>
               </div>
             </form>
