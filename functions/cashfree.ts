@@ -188,11 +188,11 @@ export const createCashfreePaymentSession = functions
       throw new functions.https.HttpsError('unauthenticated', 'Login required');
     }
 
-    const { businessId, tenantId, rentInvoiceId, enrollmentRequestId, forceNew } = data || {};
-    if (!businessId || (!rentInvoiceId && !enrollmentRequestId)) {
+    const { businessId, tenantId, rentInvoiceId, enrollmentRequestId, submeterInvoiceId, amount, purpose, customerName, customerPhone, forceNew } = data || {};
+    if (!businessId || (!rentInvoiceId && !enrollmentRequestId && !amount && !submeterInvoiceId)) {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        'businessId and either rentInvoiceId or enrollmentRequestId required'
+        'businessId and either rentInvoiceId, enrollmentRequestId, submeterInvoiceId, or amount required'
       );
     }
 
@@ -361,7 +361,54 @@ export const createCashfreePaymentSession = functions
       };
     }
 
-    throw new functions.https.HttpsError('invalid-argument', 'Missing invoice or enrollment ID');
+    // ── 3. On-Demand Direct UPI Rent / Submeter / Custom Utility Bill Flow ──
+    if (amount || submeterInvoiceId) {
+      const billAmount = Number(amount || 0);
+      if (billAmount <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'Valid payment amount is required');
+      }
+
+      const uniqueLinkId = `link_upi_${(tenantId || uid).substring(0, 6)}_${Date.now().toString().slice(-6)}`;
+      const cleanPhone = (customerPhone || '9999999999').replace(/[^0-9]/g, '').slice(-10);
+
+      const linkPayload = {
+        link_id: uniqueLinkId,
+        link_amount: billAmount,
+        link_currency: 'INR',
+        link_purpose: purpose || `Rent & Utility Payment - OneStay360`,
+        customer_details: {
+          customer_name: customerName || 'Resident',
+          customer_phone: cleanPhone.length === 10 ? cleanPhone : '9999999999',
+          customer_email: 'resident@onestay360.in',
+        },
+        link_notify: {
+          send_sms: false,
+          send_email: false,
+        },
+        link_meta: {
+          return_url: `https://onestay360.in/payment/status?link_id=${uniqueLinkId}`,
+          notify_url: 'https://us-central1-onestay360-1.cloudfunctions.net/cashfreePaymentWebhook',
+        },
+        link_notes: {
+          businessId,
+          tenantId: tenantId || uid,
+          submeterInvoiceId: submeterInvoiceId || '',
+          type: submeterInvoiceId ? 'submeter_utility' : 'direct_rent',
+        },
+      };
+
+      const cfResponse = await cashfreeApiRequest('POST', '/pg/links', linkPayload, credentials);
+      const paymentUrl = cfResponse.link_url;
+
+      return {
+        paymentUrl,
+        linkId: uniqueLinkId,
+        orderId: uniqueLinkId,
+        environment: credentials.environment,
+      };
+    }
+
+    throw new functions.https.HttpsError('invalid-argument', 'Missing invoice, enrollment, or amount parameter');
   });
 
 // ─────────────────────────────────────────────────────────
@@ -417,37 +464,163 @@ export const cashfreePaymentWebhook = functions
       if (isSuccess) {
         const enrollmentRequestId = linkNotes.enrollmentRequestId;
         const rentInvoiceId = linkNotes.rentInvoiceId;
+        const submeterInvoiceId = linkNotes.submeterInvoiceId;
+        const targetTenantId = linkNotes.tenantId;
+        const paidAmount = Number(paymentData?.payment_amount || linkData?.link_amount || orderData?.order_amount || 0);
+        const cfPaymentRef = paymentData?.cf_payment_id || linkData?.cf_link_id || orderData?.cf_order_id || 'CF_PAID';
 
-        // 1. Mark Enrollment as Confirmed
+        // 1. Mark Enrollment as Confirmed & Allocate Bed
         if (enrollmentRequestId) {
           const enrollRef = db.doc(`enrollmentRequests/${enrollmentRequestId}`);
           const enrollSnap = await enrollRef.get();
           if (enrollSnap.exists && enrollSnap.data()?.status !== 'confirmed') {
+            const enrollData = enrollSnap.data() as any;
+            const nowTs = admin.firestore.FieldValue.serverTimestamp();
+
             await enrollRef.update({
               status: 'confirmed',
               paymentStatus: 'paid',
-              paidAt: admin.firestore.FieldValue.serverTimestamp(),
-              cfPaymentId: paymentData?.cf_payment_id || null,
+              paidAt: nowTs,
+              cfPaymentId: cfPaymentRef,
               paymentMethod: paymentData?.payment_group || 'UPI',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: nowTs,
             });
-            functions.logger.info('enrollment_marked_confirmed_via_cashfree', { enrollmentRequestId });
+
+            // If bedId and propertyId are known, allocate bed
+            if (enrollData.propertyId && enrollData.bedId) {
+              const bedRef = db.doc(`businesses/${businessId}/properties/${enrollData.propertyId}/beds/${enrollData.bedId}`);
+              const bedSnap = await bedRef.get();
+              if (bedSnap.exists) {
+                await bedRef.update({
+                  isOccupied: true,
+                  status: 'occupied',
+                  tenantId: targetTenantId || enrollData.tenantId || enrollData.userId || '',
+                  tenantName: enrollData.tenantName || 'Resident',
+                  tenantPhone: enrollData.tenantPhone || '',
+                  updatedAt: nowTs,
+                });
+              }
+            }
+
+            // Create formal move-in receipt
+            const receiptId = `REC_ENR_${Date.now()}`;
+            await db.collection(`businesses/${businessId}/receipts`).doc(receiptId).set({
+              receiptId,
+              receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
+              type: 'move_in_deposit',
+              enrollmentRequestId,
+              tenantId: targetTenantId || enrollData.tenantId || enrollData.userId || '',
+              tenantName: enrollData.tenantName || 'Resident',
+              tenantPhone: enrollData.tenantPhone || '',
+              propertyName: enrollData.propertyName || 'OneStay360 PG',
+              amount: paidAmount || Number(enrollData.totalBillAmount || 0),
+              paymentMethod: 'CASHFREE_UPI',
+              cfPaymentId: cfPaymentRef,
+              status: 'success',
+              createdAt: nowTs,
+            });
+
+            functions.logger.info('enrollment_confirmed_and_receipt_created', { enrollmentRequestId, receiptId });
           }
         }
 
-        // 2. Mark Rent Invoice as Paid
+        // 2. Mark Rent Invoice as Paid & Update Tenant Balance
         if (rentInvoiceId) {
-          const invoiceRef = db.doc(`rentInvoices/${rentInvoiceId}`);
-          const invoiceSnap = await invoiceRef.get();
-          if (invoiceSnap.exists && invoiceSnap.data()?.status !== 'paid') {
-            await invoiceRef.update({
+          const nowTs = admin.firestore.FieldValue.serverTimestamp();
+
+          // Check root rentInvoices
+          const rootInvoiceRef = db.doc(`rentInvoices/${rentInvoiceId}`);
+          const rootSnap = await rootInvoiceRef.get();
+          let invData: any = rootSnap.exists ? rootSnap.data() : null;
+
+          if (rootSnap.exists && invData?.status !== 'paid') {
+            await rootInvoiceRef.update({
               status: 'paid',
-              paidAt: admin.firestore.FieldValue.serverTimestamp(),
-              cfPaymentId: paymentData?.cf_payment_id || null,
+              paidAt: nowTs,
+              cfPaymentId: cfPaymentRef,
               paymentMethod: paymentData?.payment_group || 'UPI',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: nowTs,
             });
-            functions.logger.info('invoice_marked_paid_via_cashfree', { rentInvoiceId });
+          }
+
+          // Check nested tenant rent_invoices under businesses/{businessId}/tenants/{tenantId}/rent_invoices
+          const effectiveTenantId = targetTenantId || invData?.tenantId;
+          if (effectiveTenantId) {
+            const nestedInvoiceRef = db.doc(`businesses/${businessId}/tenants/${effectiveTenantId}/rent_invoices/${rentInvoiceId}`);
+            const nestedSnap = await nestedInvoiceRef.get();
+            if (nestedSnap.exists && nestedSnap.data()?.status !== 'paid') {
+              if (!invData) invData = nestedSnap.data();
+              await nestedInvoiceRef.update({
+                status: 'paid',
+                paidAt: nowTs,
+                cfPaymentId: cfPaymentRef,
+                paymentMethod: paymentData?.payment_group || 'UPI',
+                updatedAt: nowTs,
+              });
+            }
+
+            // Update Tenant's Last Payment Record in Firestore
+            const tenantUpdates = {
+              lastPaymentDate: nowTs,
+              lastPaymentAmount: paidAmount || Number(invData?.amount || invData?.totalAmount || 0),
+              status: 'active',
+              updatedAt: nowTs,
+            };
+
+            await db.doc(`businesses/${businessId}/tenants/${effectiveTenantId}`).set(tenantUpdates, { merge: true }).catch(() => {});
+            await db.doc(`tenants/${effectiveTenantId}`).set(tenantUpdates, { merge: true }).catch(() => {});
+
+            // Generate Instant Official Rent Receipt
+            const receiptId = `REC_RENT_${Date.now()}`;
+            await db.collection(`businesses/${businessId}/receipts`).doc(receiptId).set({
+              receiptId,
+              receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
+              type: 'monthly_rent',
+              rentInvoiceId,
+              tenantId: effectiveTenantId,
+              tenantName: invData?.tenantName || invData?.residentName || 'Resident',
+              tenantPhone: invData?.tenantPhone || '',
+              propertyName: invData?.propertyName || 'OneStay360 PG',
+              amount: paidAmount || Number(invData?.amount || invData?.totalAmount || 0),
+              paymentMethod: 'CASHFREE_UPI',
+              cfPaymentId: cfPaymentRef,
+              monthYear: invData?.month || invData?.monthYear || 'Current Month',
+              status: 'success',
+              createdAt: nowTs,
+            });
+
+            // Send notification to tenant
+            try {
+              const tokensSnap = await db.collection(`users/${effectiveTenantId}/deviceTokens`).where('active', '==', true).get();
+              for (const tok of tokensSnap.docs) {
+                await admin.messaging().send({
+                  token: tok.id,
+                  notification: {
+                    title: '✅ Rent Payment Verified!',
+                    body: `Your payment of ₹${paidAmount.toLocaleString('en-IN')} via Direct UPI has been confirmed. Receipt #${receiptId.slice(-6)} issued.`,
+                  },
+                });
+              }
+            } catch (_) {}
+
+            functions.logger.info('rent_invoice_marked_paid_via_cashfree', { rentInvoiceId, receiptId });
+          }
+        }
+
+        // 3. Mark Submeter Utility Bill as Paid
+        if (submeterInvoiceId) {
+          const nowTs = admin.firestore.FieldValue.serverTimestamp();
+          const submeterRef = db.doc(`businesses/${businessId}/submeter_bills/${submeterInvoiceId}`);
+          const submeterSnap = await submeterRef.get();
+          if (submeterSnap.exists) {
+            await submeterRef.update({
+              status: 'paid',
+              paidAt: nowTs,
+              cfPaymentId: cfPaymentRef,
+              paymentMethod: paymentData?.payment_group || 'UPI',
+              updatedAt: nowTs,
+            });
+            functions.logger.info('submeter_bill_marked_paid_via_cashfree', { submeterInvoiceId });
           }
         }
       }

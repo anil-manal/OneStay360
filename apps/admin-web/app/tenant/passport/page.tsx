@@ -37,6 +37,8 @@ export default function TenantPassportPage() {
   const [verifying, setVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [selectedPoliceState, setSelectedPoliceState] = useState<"Maharashtra" | "Karnataka" | "Delhi">("Maharashtra");
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedUri, setCopiedUri] = useState(false);
 
   // Form states
   const [fullNameInput, setFullNameInput] = useState("");
@@ -747,37 +749,198 @@ export default function TenantPassportPage() {
                 </div>
               </div>
 
-              {/* Check-in QR Footer */}
-              <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px dashed rgba(255,255,255,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: "48px", height: "48px", background: "#FFFFFF", borderRadius: "8px", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <QrCode size={40} color="#0F172A" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: 700, color: "#F8FAFC" }}>Instant Check-In QR</div>
-                    <div style={{ fontSize: "11px", color: "#94A3B8" }}>Present to your OneStay360 PG Warden for 1-click contactless check-in</div>
-                  </div>
-                </div>
+              {/* Check-in QR Footer with Mobile Parity */}
+              {(() => {
+                const qrTenantId = profile?.tenantId || user?.uid || "TEN0000001";
+                const qrUri = `onestay360:tenant:${qrTenantId}`;
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrUri)}`;
 
-                <button
-                  onClick={() => setStep(1)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "8px",
-                    background: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    color: "#FFFFFF",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <Edit3 size={14} /> Update KYC Details
-                </button>
-              </div>
+                return (
+                  <>
+                    <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px dashed rgba(255,255,255,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+                      <div
+                        onClick={() => setShowQrModal(true)}
+                        style={{ display: "flex", alignItems: "center", gap: "14px", cursor: "pointer" }}
+                      >
+                        <div
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            background: "#FFFFFF",
+                            borderRadius: "10px",
+                            padding: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                          }}
+                        >
+                          <img
+                            src={qrImageUrl}
+                            alt="Tenant QR"
+                            style={{ width: "48px", height: "48px", objectFit: "contain" }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "14px", fontWeight: 800, color: "#F8FAFC", display: "flex", alignItems: "center", gap: "6px" }}>
+                            Instant Check-In QR <span style={{ fontSize: "11px", background: "rgba(56,189,248,0.2)", color: "#38BDF8", padding: "1px 6px", borderRadius: "4px" }}>Tap to Expand</span>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#94A3B8" }}>
+                            Present to your PG Warden for 1-click camera scan in the OneStay360 Business App
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <button
+                          onClick={() => setShowQrModal(true)}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: "8px",
+                            background: "#0D9488",
+                            border: "none",
+                            color: "#FFFFFF",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <QrCode size={14} /> Show Pass QR
+                        </button>
+                        <button
+                          onClick={() => setStep(1)}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: "8px",
+                            background: "rgba(255, 255, 255, 0.1)",
+                            border: "1px solid rgba(255, 255, 255, 0.2)",
+                            color: "#FFFFFF",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <Edit3 size={14} /> Update KYC Details
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* QR Code Fullscreen Modal */}
+                    {showQrModal && (
+                      <div
+                        onClick={() => setShowQrModal(false)}
+                        style={{
+                          position: "fixed",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: "rgba(15, 23, 42, 0.8)",
+                          backdropFilter: "blur(4px)",
+                          zIndex: 9999,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "20px",
+                        }}
+                      >
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            maxWidth: "420px",
+                            width: "100%",
+                            background: "#FFFFFF",
+                            borderRadius: "24px",
+                            padding: "36px 28px",
+                            textAlign: "center",
+                            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                            border: "1px solid #E2E8F0",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+                            <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#0D9488", color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "18px" }}>
+                              O
+                            </div>
+                          </div>
+
+                          <h3 style={{ fontSize: "20px", fontWeight: 900, color: "#0F172A", margin: "0 0 6px 0" }}>
+                            Resident Digital Pass
+                          </h3>
+                          <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 20px 0" }}>
+                            Show this QR code to your PG warden. Scanning will instantly verify your KYC and allocate your bed.
+                          </p>
+
+                          <div
+                            style={{
+                              background: "#F8FAFC",
+                              padding: "20px",
+                              borderRadius: "16px",
+                              display: "inline-block",
+                              border: "2px solid #E2E8F0",
+                              marginBottom: "18px",
+                            }}
+                          >
+                            <img
+                              src={qrImageUrl}
+                              alt="Scan QR"
+                              style={{ width: "220px", height: "220px", display: "block" }}
+                            />
+                          </div>
+
+                          <div style={{ background: "#F1F5F9", padding: "10px 14px", borderRadius: "8px", fontSize: "12px", fontFamily: "monospace", color: "#334155", marginBottom: "20px", wordBreak: "break-all" }}>
+                            {qrUri}
+                          </div>
+
+                          <div style={{ display: "flex", gap: "10px" }}>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(qrUri);
+                                setCopiedUri(true);
+                                setTimeout(() => setCopiedUri(false), 2000);
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "10px 14px",
+                                borderRadius: "8px",
+                                border: "1px solid #CBD5E1",
+                                background: "#FFFFFF",
+                                color: "#334155",
+                                fontWeight: 700,
+                                fontSize: "13px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {copiedUri ? "Copied URI!" : "Copy URI"}
+                            </button>
+                            <button
+                              onClick={() => setShowQrModal(false)}
+                              style={{
+                                flex: 1,
+                                padding: "10px 14px",
+                                borderRadius: "8px",
+                                border: "none",
+                                background: "#0F172A",
+                                color: "#FFFFFF",
+                                fontWeight: 700,
+                                fontSize: "13px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* AUTOMATED LEGAL & POLICE COMPLIANCE SUITE */}

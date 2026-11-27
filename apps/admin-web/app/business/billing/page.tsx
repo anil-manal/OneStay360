@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { fetchBusinessProperties } from "@/lib/data-service";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -583,24 +584,24 @@ export default function BusinessBillingPage() {
                       </>
                     )}
                     {inv.status === "paid" && (
-                      <button
-                        onClick={() => alert(`Receipt #${inv.paymentRef} downloaded for ${inv.residentName}`)}
+                      <Link
+                        href={`/business/billing/invoice/${inv.id}`}
                         style={{
                           padding: "6px 10px",
                           borderRadius: "6px",
                           border: "1px solid #E2E8F0",
                           background: "#F8FAFC",
                           fontSize: "12px",
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: "#334155",
-                          cursor: "pointer",
-                          display: "flex",
+                          textDecoration: "none",
+                          display: "inline-flex",
                           alignItems: "center",
                           gap: "4px",
                         }}
                       >
-                        <Printer size={13} /> Print Receipt
-                      </button>
+                        <Printer size={13} /> View / Print Tax Invoice
+                      </Link>
                     )}
                   </div>
                 </td>

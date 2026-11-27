@@ -6,6 +6,7 @@ import {
   createTenantWithStay,
   NewTenantInput,
   fetchPropertyRoomsAndBeds,
+  fetchTenantProfile,
   RoomData,
 } from "@/lib/data-service";
 import {
@@ -24,6 +25,8 @@ import {
   Mail,
   Home,
   Check,
+  QrCode,
+  Sparkles,
 } from "lucide-react";
 
 interface AddTenantModalProps {
@@ -92,6 +95,47 @@ export default function AddTenantModal({
 
   // Tab 5: Bill
   const [paySecurityDepositNow, setPaySecurityDepositNow] = useState<boolean>(true);
+
+  // QR / ID Autofill State (Mobile Parity)
+  const [qrInput, setQrInput] = useState("");
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrLoadedSuccess, setQrLoadedSuccess] = useState<string | null>(null);
+
+  const handleLoadTenantFromQrOrId = async (inputStr: string) => {
+    let cleanId = inputStr.trim();
+    if (cleanId.startsWith("onestay360:tenant:")) {
+      cleanId = cleanId.replace("onestay360:tenant:", "");
+    }
+    if (!cleanId) return;
+
+    try {
+      setQrLoading(true);
+      setQrLoadedSuccess(null);
+      setErrorMsg(null);
+      const data = await fetchTenantProfile(cleanId, cleanId);
+      if (data) {
+        if (data.fullName) setFullName(data.fullName);
+        if (data.phone) setPhone(data.phone);
+        if (data.email) setEmail(data.email);
+        if (data.gender) setGender(data.gender as any);
+        if (data.dateOfBirth) setDob(data.dateOfBirth);
+        if (data.addressLine1) setAddress(data.addressLine1);
+        if (data.idNumber) setIdNumber(data.idNumber);
+        if (data.officeInstituteName) setOfficeInstituteName(data.officeInstituteName);
+        if (data.officeInstituteId) setOfficeInstituteId(data.officeInstituteId);
+        if (data.emergencyContactName) setEmergencyName(data.emergencyContactName);
+        if (data.emergencyContactPhone) setEmergencyPhone(data.emergencyContactPhone);
+        if (data.emergencyContactRelation) setRelationship(data.emergencyContactRelation);
+        setQrLoadedSuccess(`Verified Resident Passport loaded for ${data.fullName || cleanId}!`);
+      } else {
+        setErrorMsg(`No verified profile found for ID: ${cleanId}. Enter details manually.`);
+      }
+    } catch (err: any) {
+      setErrorMsg(`Failed to load tenant: ${err.message}`);
+    } finally {
+      setQrLoading(false);
+    }
+  };
 
   // Initialize selected property
   useEffect(() => {
@@ -586,9 +630,71 @@ export default function AddTenantModal({
           {/* TAB 2: Tenant Info & Identity */}
           {activeTab === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
-                2. Resident Personal Identity & Contact
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
+                  2. Resident Personal Identity &amp; Contact
+                </h3>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "#ECFDF5", padding: "2px 8px", borderRadius: "4px" }}>
+                  Mobile QR Parity
+                </span>
+              </div>
+
+              {/* Fast QR / Tenant ID Quick-Fill Banner */}
+              <div
+                style={{
+                  background: "#F8FAFC",
+                  border: "1px dashed #CBD5E1",
+                  borderRadius: "10px",
+                  padding: "12px 14px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                  <QrCode size={14} color="#0D9488" />
+                  <span>Scan or Paste Resident Passport QR / ID</span>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    placeholder="Paste onestay360:tenant:... or tenant ID (e.g. TEN0000001)"
+                    value={qrInput}
+                    onChange={(e) => setQrInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      border: "1px solid #CBD5E1",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={qrLoading || !qrInput.trim()}
+                    onClick={() => handleLoadTenantFromQrOrId(qrInput)}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "6px",
+                      background: "#0D9488",
+                      color: "#FFFFFF",
+                      border: "none",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Sparkles size={12} /> {qrLoading ? "Loading..." : "Auto-Fill"}
+                  </button>
+                </div>
+
+                {qrLoadedSuccess && (
+                  <div style={{ marginTop: "6px", fontSize: "11px", color: "#16A34A", fontWeight: 700 }}>
+                    {qrLoadedSuccess}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
