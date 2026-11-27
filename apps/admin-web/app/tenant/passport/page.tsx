@@ -3,7 +3,14 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { fetchTenantProfile, saveTenantProfile, TenantProfileData } from "@/lib/data-service";
+import {
+  fetchTenantProfile,
+  saveTenantProfile,
+  TenantProfileData,
+  initiateCashfreeAadhaarKyc,
+  verifyCashfreeAadhaarKyc,
+  validateAadhaarVerhoeff,
+} from "@/lib/data-service";
 import {
   ShieldCheck,
   CheckCircle2,
@@ -36,6 +43,9 @@ export default function TenantPassportPage() {
   const [kycMethod, setKycMethod] = useState<"digilocker" | "ocr">("digilocker");
   const [verifying, setVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [cashfreeRefId, setCashfreeRefId] = useState("");
+  const [verificationFeedback, setVerificationFeedback] = useState<string | null>(null);
+  const [showForm29Modal, setShowForm29Modal] = useState(false);
   const [selectedPoliceState, setSelectedPoliceState] = useState<"Maharashtra" | "Karnataka" | "Delhi">("Maharashtra");
   const [showQrModal, setShowQrModal] = useState(false);
   const [copiedUri, setCopiedUri] = useState(false);
@@ -106,25 +116,65 @@ export default function TenantPassportPage() {
   }, [user, userProfile]);
 
   const handleSendAadhaarOtp = async () => {
-    if (aadhaarInput.replace(/\s/g, "").length < 10) {
-      alert("Please enter a valid Government ID or Aadhaar Number.");
+    const clean = aadhaarInput.replace(/\s+/g, "").trim();
+    if (clean.length !== 12) {
+      alert("Please enter a valid 12-digit Aadhaar Number.");
       return;
     }
-    setVerifying(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setVerifying(false);
-    setOtpSent(true);
+    const isVerhoeffValid = validateAadhaarVerhoeff(clean);
+    if (!isVerhoeffValid) {
+      alert("Invalid Aadhaar number checksum. Please double-check your 12-digit number.");
+      return;
+    }
+
+    try {
+      setVerifying(true);
+      setVerificationFeedback(null);
+      const res = await initiateCashfreeAadhaarKyc(clean);
+      setCashfreeRefId(res.refId);
+      setOtpSent(true);
+      setVerificationFeedback(res.message);
+    } catch (err: any) {
+      alert("Cashfree Verification Error: " + err.message);
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleVerifyAadhaarOtp = async () => {
-    if (otpInput.length < 4) {
-      alert("Please enter the 4 or 6 digit verification OTP sent to your phone.");
+    if (!otpInput || otpInput.trim().length < 4) {
+      alert("Please enter the verification OTP sent to your Aadhaar-registered mobile.");
       return;
     }
-    setVerifying(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setVerifying(false);
-    setStep(2);
+    try {
+      setVerifying(true);
+      const res = await verifyCashfreeAadhaarKyc(
+        cashfreeRefId,
+        otpInput.trim(),
+        aadhaarInput,
+        profile?.tenantId || user?.uid
+      );
+
+      if (res.verifiedProfile) {
+        const vp = res.verifiedProfile;
+        if (vp.fullName) setFullNameInput(vp.fullName);
+        if (vp.dateOfBirth) setDobInput(vp.dateOfBirth);
+        if (vp.gender) setGenderInput(vp.gender as any);
+        if (vp.idNumber) setAadhaarInput(vp.idNumber);
+        if (vp.addressLine1) setAddressLineInput(vp.addressLine1);
+        if (vp.city) setCityInput(vp.city);
+        if (vp.state) setStateInput(vp.state);
+        if (vp.pincode) setPincodeInput(vp.pincode);
+        if (vp.emergencyContactName) setEmergencyName(vp.emergencyContactName);
+        if (vp.emergencyContactRelation) setEmergencyRelation(vp.emergencyContactRelation);
+      }
+      setVerificationFeedback("✅ DigiLocker Aadhaar KYC verified successfully via Cashfree Verification Suite!");
+      setStep(2);
+    } catch (err: any) {
+      alert("Verification failed: " + err.message);
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleCompleteStep2 = () => {
@@ -316,168 +366,255 @@ export default function TenantPassportPage() {
           </div>
         )}
 
-        {/* STEP 1: AADHAAR & DIGILOCKER */}
+        {/* STEP 1: CASHFREE DIGILOCKER VERIFICATION SUITE */}
         {step === 1 && (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-            <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
-              Step 1 of 3: Statutory Identity
-            </span>
-            <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 6px 0", color: "#0F172A" }}>
-              Government ID &amp; Address Verification
-            </h2>
-            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 24px 0", maxWidth: "600px" }}>
-              Only actual verified values will be saved to your resident profile and used for police verification.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "8px" }}>
+              <div>
+                <span style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 800, color: "var(--teal-primary)", letterSpacing: "0.5px" }}>
+                  Step 1 of 3: Statutory Identity
+                </span>
+                <h2 style={{ fontSize: "20px", fontWeight: 800, margin: "4px 0 0 0", color: "#0F172A" }}>
+                  Instant DigiLocker e-KYC
+                </h2>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", padding: "6px 12px" }}>
+                <ShieldCheck size={16} color="#2563EB" />
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#1E40AF" }}>
+                  Powered by Cashfree Verification Suite
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "13px", color: "#64748B", margin: "0 0 24px 0", maxWidth: "620px" }}>
+              Zero paperwork. Enter your Aadhaar number to fetch your government-verified legal name, date of birth, photo, and permanent address directly from the UIDAI vault via Cashfree DigiLocker Gateway.
             </p>
 
-            <div style={{ maxWidth: "520px", display: "flex", flexDirection: "column", gap: "18px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Full Legal Name (as per Govt ID) *
-                </label>
-                <input
-                  type="text"
-                  value={fullNameInput}
-                  onChange={(e) => setFullNameInput(e.target.value)}
-                  placeholder="Enter your full legal name"
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Date of Birth
+            <div style={{ maxWidth: "560px", display: "flex", flexDirection: "column", gap: "18px" }}>
+              {/* Cashfree Aadhaar Verification Card */}
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
+                    12-Digit Aadhaar Number *
                   </label>
-                  <input
-                    type="date"
-                    value={dobInput}
-                    onChange={(e) => setDobInput(e.target.value)}
-                    style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
-                  />
+                  {aadhaarInput.replace(/\s+/g, "").length === 12 && (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: validateAadhaarVerhoeff(aadhaarInput.replace(/\s+/g, "")) ? "#059669" : "#DC2626",
+                      }}
+                    >
+                      {validateAadhaarVerhoeff(aadhaarInput.replace(/\s+/g, ""))
+                        ? "✓ Valid UIDAI Checksum"
+                        : "⚠ Invalid Checksum"}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Gender
-                  </label>
-                  <select
-                    value={genderInput}
-                    onChange={(e) => setGenderInput(e.target.value)}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px", background: "#FFFFFF" }}
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Aadhaar / Government ID Number *
-                </label>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input
                     type="text"
+                    maxLength={14}
                     value={aadhaarInput}
-                    onChange={(e) => setAadhaarInput(e.target.value)}
-                    placeholder="Enter 12-digit Aadhaar Number"
-                    style={{ flex: 1, padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px", letterSpacing: "1px" }}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, "").slice(0, 12);
+                      const formatted = raw.replace(/(\d{4})/g, "$1 ").trim();
+                      setAadhaarInput(formatted);
+                    }}
+                    placeholder="e.g. 5829 4819 8921"
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid #CBD5E1",
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      letterSpacing: "2px",
+                      background: "#FFFFFF",
+                    }}
                   />
                   <button
+                    type="button"
                     onClick={handleSendAadhaarOtp}
                     disabled={verifying}
                     className="btnPrimary"
-                    style={{ padding: "10px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap" }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                    }}
                   >
-                    {verifying ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                    {verifying ? "Sending OTP..." : otpSent ? "Resend OTP" : "Generate UIDAI OTP"}
                   </button>
                 </div>
+
+                {/* OTP verification drawer */}
+                {otpSent && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px dashed #CBD5E1" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                      Enter 6-Digit UIDAI DigiLocker OTP
+                    </label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otpInput}
+                        onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ""))}
+                        placeholder="123456"
+                        style={{
+                          width: "180px",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          border: "1px solid #3B82F6",
+                          fontSize: "18px",
+                          fontWeight: 800,
+                          letterSpacing: "6px",
+                          textAlign: "center",
+                          background: "#FFFFFF",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyAadhaarOtp}
+                        disabled={verifying}
+                        className="btnPrimary"
+                        style={{
+                          padding: "10px 20px",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {verifying ? "Verifying with Cashfree..." : "Authorize & Fetch Credentials"}
+                      </button>
+                    </div>
+                    {verificationFeedback && (
+                      <div style={{ fontSize: "12px", color: "#059669", marginTop: "8px", fontWeight: 600 }}>
+                        {verificationFeedback}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {otpSent && (
-                <div style={{ background: "#F1F5F9", padding: "16px", borderRadius: "10px", border: "1px dashed #CBD5E1" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#475569", marginBottom: "6px" }}>
-                    Enter UIDAI Verification OTP
+              {/* Pre-filled / Editable Personal Details */}
+              <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                    Full Legal Name (as certified by UIDAI) *
                   </label>
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    value={fullNameInput}
+                    onChange={(e) => setFullNameInput(e.target.value)}
+                    placeholder="Enter your full legal name"
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={dobInput}
+                      onChange={(e) => setDobInput(e.target.value)}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                      Gender
+                    </label>
+                    <select
+                      value={genderInput}
+                      onChange={(e) => setGenderInput(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px", background: "#FFFFFF" }}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                    UIDAI Verified Permanent Address Line 1
+                  </label>
+                  <input
+                    type="text"
+                    value={addressLineInput}
+                    onChange={(e) => setAddressLineInput(e.target.value)}
+                    placeholder="House/Flat No, Apartment, Street"
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>City</label>
+                    <input
+                      type="text"
+                      value={cityInput}
+                      onChange={(e) => setCityInput(e.target.value)}
+                      placeholder="e.g. Pune"
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>State</label>
+                    <input
+                      type="text"
+                      value={stateInput}
+                      onChange={(e) => setStateInput(e.target.value)}
+                      placeholder="e.g. Maharashtra"
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Pincode</label>
                     <input
                       type="text"
                       maxLength={6}
-                      value={otpInput}
-                      onChange={(e) => setOtpInput(e.target.value)}
-                      placeholder="6-digit OTP"
-                      style={{ width: "160px", padding: "8px 12px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "16px", letterSpacing: "4px", textAlign: "center" }}
+                      value={pincodeInput}
+                      onChange={(e) => setPincodeInput(e.target.value)}
+                      placeholder="411045"
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
                     />
-                    <button
-                      onClick={handleVerifyAadhaarOtp}
-                      className="btnPrimary"
-                      style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 700 }}
-                    >
-                      Verify &amp; Continue
-                    </button>
                   </div>
                 </div>
-              )}
-
-              <div>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                  Permanent Address Line 1
-                </label>
-                <input
-                  type="text"
-                  value={addressLineInput}
-                  onChange={(e) => setAddressLineInput(e.target.value)}
-                  placeholder="House/Flat No, Apartment, Street"
-                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "14px" }}
-                />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "10px" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>City</label>
-                  <input
-                    type="text"
-                    value={cityInput}
-                    onChange={(e) => setCityInput(e.target.value)}
-                    placeholder="e.g. Pune"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>State</label>
-                  <input
-                    type="text"
-                    value={stateInput}
-                    onChange={(e) => setStateInput(e.target.value)}
-                    placeholder="Maharashtra"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>Pincode</label>
-                  <input
-                    type="text"
-                    value={pincodeInput}
-                    onChange={(e) => setPincodeInput(e.target.value)}
-                    placeholder="411045"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px" }}
-                  />
-                </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!fullNameInput.trim()) {
+                      alert("Please provide your full legal name or verify via DigiLocker.");
+                      return;
+                    }
+                    setStep(2);
+                  }}
+                  className="btnPrimary"
+                  style={{
+                    padding: "10px 22px",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Continue to Guardian Details &rarr;
+                </button>
               </div>
-
-              <button
-                onClick={() => {
-                  if (!fullNameInput.trim()) {
-                    alert("Please enter your legal name.");
-                    return;
-                  }
-                  setStep(2);
-                }}
-                className="btnPrimary"
-                style={{ padding: "12px 20px", borderRadius: "10px", fontWeight: 700, fontSize: "14px", marginTop: "10px" }}
-              >
-                Continue to Guardian Details &rarr;
-              </button>
             </div>
           </div>
         )}
@@ -1022,7 +1159,7 @@ export default function TenantPassportPage() {
                   </div>
                   {isKycComplete && (
                     <button
-                      onClick={() => alert(`Downloading verified ${selectedPoliceState} Police Form 29 PDF for ${displayName}...`)}
+                      onClick={() => setShowForm29Modal(true)}
                       className="btnPrimary"
                       style={{
                         padding: "8px 16px",
@@ -1035,12 +1172,154 @@ export default function TenantPassportPage() {
                         cursor: "pointer",
                       }}
                     >
-                      <Download size={14} /> Download Signed Form 29 PDF
+                      <Download size={14} /> View &amp; Print Form 29 PDF
                     </button>
                   )}
                 </div>
               </div>
             </div>
+
+            {/* STATUTORY FORM 29 PRINTABLE MODAL */}
+            {showForm29Modal && (
+              <div
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(15, 23, 42, 0.7)",
+                  backdropFilter: "blur(4px)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 200,
+                  padding: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    background: "#FFFFFF",
+                    borderRadius: "16px",
+                    maxWidth: "760px",
+                    width: "100%",
+                    maxHeight: "90vh",
+                    overflowY: "auto",
+                    padding: "32px",
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                    fontFamily: "var(--font-sans)",
+                    color: "#0F172A",
+                  }}
+                >
+                  {/* Top action bar */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #E2E8F0", paddingBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <FileText size={20} color="#059669" />
+                      <strong style={{ fontSize: "16px" }}>Statutory Police Tenant Verification Document</strong>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => window.print()}
+                        className="btnPrimary"
+                        style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                      >
+                        <Download size={14} /> Print / Save as PDF
+                      </button>
+                      <button
+                        onClick={() => setShowForm29Modal(false)}
+                        style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", fontSize: "12px", fontWeight: 700, color: "#64748B", cursor: "pointer" }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Printable Form Content */}
+                  <div id="printableForm29" style={{ border: "2px solid #0F172A", padding: "28px", borderRadius: "8px", background: "#FFFFFF" }}>
+                    <div style={{ textAlign: "center", borderBottom: "2px solid #0F172A", paddingBottom: "16px", marginBottom: "20px" }}>
+                      <h2 style={{ fontSize: "16px", fontWeight: 900, textTransform: "uppercase", margin: 0, letterSpacing: "1px" }}>
+                        GOVERNMENT OF {selectedPoliceState.toUpperCase()} &bull; POLICE COMMISSIONERATE
+                      </h2>
+                      <h3 style={{ fontSize: "13px", fontWeight: 700, margin: "6px 0 0 0", color: "#334155" }}>
+                        FORM 29 / STATUTORY INFORMATION OF TENANT / PAYING GUEST
+                      </h3>
+                      <p style={{ fontSize: "10px", color: "#64748B", margin: "4px 0 0 0" }}>
+                        Submitted pursuant to Sec. 144 of the Code of Criminal Procedure / State Police Act
+                      </p>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748B" }}>UIDAI CERTIFIED IDENTITY</div>
+                        <div style={{ fontSize: "14px", fontWeight: 800 }}>Resident Name: {displayName}</div>
+                        <div style={{ fontSize: "12px", color: "#475569" }}>Masked Aadhaar: {maskedAadhaar}</div>
+                        <div style={{ fontSize: "12px", color: "#475569" }}>DOB &amp; Gender: {formattedDob} &bull; {gender}</div>
+                      </div>
+                      <div
+                        style={{
+                          width: "100px",
+                          height: "120px",
+                          border: "1px dashed #64748B",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "10px",
+                          color: "#94A3B8",
+                          textAlign: "center",
+                          padding: "6px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        <User size={32} color="#CBD5E1" />
+                        <span>Passport Photo</span>
+                      </div>
+                    </div>
+
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
+                      <tbody>
+                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{ padding: "8px", fontWeight: 700, width: "35%", color: "#475569" }}>Father / Guardian Name:</td>
+                          <td style={{ padding: "8px" }}>{profile?.emergencyContactName || "Not Provided"}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{ padding: "8px", fontWeight: 700, color: "#475569" }}>Emergency Contact:</td>
+                          <td style={{ padding: "8px" }}>{profile?.emergencyContactPhone || profile?.phone || "Not Provided"} ({profile?.emergencyContactRelation || "Father"})</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{ padding: "8px", fontWeight: 700, color: "#475569" }}>Permanent Home Address:</td>
+                          <td style={{ padding: "8px" }}>{addressFormatted}</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{ padding: "8px", fontWeight: 700, color: "#475569" }}>Place of Work / College:</td>
+                          <td style={{ padding: "8px" }}>{affiliation} (ID: {profile?.officeInstituteId || "Verified"})</td>
+                        </tr>
+                        <tr style={{ borderBottom: "1px solid #E2E8F0" }}>
+                          <td style={{ padding: "8px", fontWeight: 700, color: "#475569" }}>Current PG Property:</td>
+                          <td style={{ padding: "8px" }}>Ram Nivas PG, Hinjawadi, Pune - 411057 (OneStay360 Verified Network)</td>
+                        </tr>
+                        <tr>
+                          <td style={{ padding: "8px", fontWeight: 700, color: "#475569" }}>Digital KYC Gateway:</td>
+                          <td style={{ padding: "8px", color: "#059669", fontWeight: 700 }}>Cashfree Verification Suite &bull; DigiLocker UIDAI Certified</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div style={{ marginTop: "24px", paddingTop: "16px", borderTop: "1px solid #CBD5E1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", fontSize: "11px" }}>
+                      <div>
+                        <div style={{ height: "40px" }} />
+                        <div style={{ borderTop: "1px solid #0F172A", paddingTop: "4px", fontWeight: 700 }}>
+                          Signature of Paying Guest / Resident
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ height: "40px" }} />
+                        <div style={{ borderTop: "1px solid #0F172A", paddingTop: "4px", fontWeight: 700 }}>
+                          Signature of PG Owner / Authorized Warden
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

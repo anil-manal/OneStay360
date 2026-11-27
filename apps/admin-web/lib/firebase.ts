@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFunctions } from "firebase/functions";
 
 // Production Firebase Web Client Configuration for OneStay360
 const firebaseConfig = {
@@ -16,7 +17,8 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
+const functions = getFunctions(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
-export { app, db, auth, googleProvider };
+export { app, db, auth, functions, googleProvider };
