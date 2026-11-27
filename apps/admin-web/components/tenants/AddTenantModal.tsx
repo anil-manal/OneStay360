@@ -73,8 +73,12 @@ export default function AddTenantModal({
   const [monthlyRent, setMonthlyRent] = useState<number>(9000);
   const [securityDeposit, setSecurityDeposit] = useState<number>(5000);
   const [maintenanceFee, setMaintenanceFee] = useState<number>(1000);
+  const [maintenanceDeductedFromDeposit, setMaintenanceDeductedFromDeposit] = useState<boolean>(true);
   const [paymentCycle, setPaymentCycle] = useState("Monthly");
+  const [rentBillingType, setRentBillingType] = useState("Monthly");
+  const [billingDay, setBillingDay] = useState<number>(1);
   const [foodAddon, setFoodAddon] = useState<boolean>(true);
+  const [foodDeductionAmount, setFoodDeductionAmount] = useState<number>(0);
   const [foodPreference, setFoodPreference] = useState("Both");
   const [durationMonths, setDurationMonths] = useState("12");
   const [lockInPeriod, setLockInPeriod] = useState("3");
@@ -93,8 +97,10 @@ export default function AddTenantModal({
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [relationship, setRelationship] = useState("Father");
 
-  // Tab 5: Bill
+  // Tab 5: Bill & Proration Calculation
   const [paySecurityDepositNow, setPaySecurityDepositNow] = useState<boolean>(true);
+  const [proratedMode, setProratedMode] = useState<"auto" | "daily" | "manual">("auto");
+  const [customProratedRent, setCustomProratedRent] = useState<string>("");
 
   // QR / ID Autofill State (Mobile Parity)
   const [qrInput, setQrInput] = useState("");
@@ -166,12 +172,25 @@ export default function AddTenantModal({
 
           // Auto-apply pricing from property if available
           const prop = properties.find((p) => p.id === selectedPropertyId);
-          if (prop?.pricing?.sharing) {
-            const row = prop.pricing.sharing.find(
-              (s) => s.sharing === firstRoom.sharingType
-            );
-            if (row) {
-              setMonthlyRent(firstRoom.hasAC ? row.ac : row.nonAc);
+          if (prop?.pricing) {
+            if (prop.pricing.securityDeposit) setSecurityDeposit(prop.pricing.securityDeposit);
+            if (prop.pricing.oneTimeMaintenance) setMaintenanceFee(prop.pricing.oneTimeMaintenance);
+            if (prop.pricing.maintenanceDeductedFromDeposit !== undefined) {
+              setMaintenanceDeductedFromDeposit(prop.pricing.maintenanceDeductedFromDeposit);
+            }
+            if (prop.pricing.sharing) {
+              const row = prop.pricing.sharing.find(
+                (s) => s.sharing === firstRoom.sharingType
+              );
+              if (row) {
+                setMonthlyRent(firstRoom.hasAC ? row.ac : row.nonAc);
+              }
+            } else if (prop.pricing.single && firstRoom.sharingType === 1) {
+              setMonthlyRent(prop.pricing.single);
+            } else if (prop.pricing.double && firstRoom.sharingType === 2) {
+              setMonthlyRent(prop.pricing.double);
+            } else if (prop.pricing.triple && firstRoom.sharingType === 3) {
+              setMonthlyRent(prop.pricing.triple);
             }
           }
         }
@@ -196,26 +215,84 @@ export default function AddTenantModal({
         if (row) {
           setMonthlyRent(room.hasAC ? row.ac : row.nonAc);
         }
+      } else if (prop?.pricing) {
+        if (room.sharingType === 1 && prop.pricing.single) setMonthlyRent(prop.pricing.single);
+        if (room.sharingType === 2 && prop.pricing.double) setMonthlyRent(prop.pricing.double);
+        if (room.sharingType === 3 && prop.pricing.triple) setMonthlyRent(prop.pricing.triple);
       }
     }
   };
 
-  // Prorated Rent Calculation
-  const calculateProratedRent = () => {
-    if (!moveInDate) return monthlyRent;
-    const date = new Date(moveInDate);
-    const day = date.getDate();
-    const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    if (day <= 1) return monthlyRent;
-    const remainingDays = daysInMonth - day + 1;
-    return Math.round((monthlyRent / daysInMonth) * remainingDays);
+  // Calculation variables matching Flutter add_tenant_screen.dart
+  const monthlyFoodDeduction = !foodAddon ? (foodDeductionAmount || 0) : 0;
+  const adjustedMonthlyRent = Math.max(0, monthlyRent - monthlyFoodDeduction);
+
+  // Helper for ordinal day formatting (1st, 2nd, 3rd, etc.)
+  const formatOrdinal = (d: number) => {
+    if (d > 3 && d < 21) return `${d}th`;
+    switch (d % 10) {
+      case 1: return `${d}st`;
+      case 2: return `${d}nd`;
+      case 3: return `${d}rd`;
+      default: return `${d}th`;
+    }
   };
 
-  const proratedRent = calculateProratedRent();
+  // Calculate Prorated Rent matching Flutter AddTenantScreen exactly
+  const calculateAutoProratedRent = () => {
+    if (!moveInDate || adjustedMonthlyRent <= 0) {
+      return { amount: adjustedMonthlyRent, note: "Full month rent" };
+    }
+    const [y, m, d] = moveInDate.split("-").map(Number);
+    const moveInDay = d || 1;
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    if (proratedMode === "daily") {
+      const remainingDays = Math.max(1, daysInMonth - moveInDay + 1);
+      const amt = Math.round((adjustedMonthlyRent / daysInMonth) * remainingDays);
+      return {
+        amount: amt,
+        note: `Daily prorated: ${remainingDays} days remaining (${moveInDay}/${m}/${y} to month end)`,
+      };
+    }
+
+    if (proratedMode === "manual" && customProratedRent !== "") {
+      const amt = Math.max(0, parseFloat(customProratedRent) || 0);
+      return {
+        amount: amt,
+        note: "Custom manually specified prorated rent",
+      };
+    }
+
+    // Standard Flutter mobile app rule: 1st-15th = Full month, 16th-31st = Half month
+    if (moveInDay >= 1 && moveInDay <= 15) {
+      return {
+        amount: adjustedMonthlyRent,
+        note: `Full month rent (move-in date: ${moveInDay}/${m}/${y} - between 1st to 15th)`,
+      };
+    } else {
+      return {
+        amount: Math.round(adjustedMonthlyRent / 2),
+        note: `Half month rent (move-in date: ${moveInDay}/${m}/${y} - between 16th to end of month)`,
+      };
+    }
+  };
+
+  const proratedResult = calculateAutoProratedRent();
+  const effectiveProratedRent = proratedResult.amount;
+  const proratedExplanation = proratedResult.note;
+
+  // First month check-in payable:
+  // If maintenance is deducted from deposit, it is NOT added to check-in bill!
   const totalDueAtMoveIn =
-    proratedRent +
+    effectiveProratedRent +
     (paySecurityDepositNow ? securityDeposit : 0) +
-    maintenanceFee;
+    (maintenanceDeductedFromDeposit ? 0 : maintenanceFee);
+
+  const refundableDepositAtVacate = Math.max(
+    0,
+    securityDeposit - (maintenanceDeductedFromDeposit ? maintenanceFee : 0)
+  );
 
   const currentProp = properties.find((p) => p.id === selectedPropertyId);
   const currentRoom = rooms.find((r) => r.roomNumber === selectedRoomNumber);
@@ -280,9 +357,15 @@ export default function AddTenantModal({
         monthlyRent,
         securityDeposit,
         maintenanceFee,
-        proratedRent,
+        maintenanceDeductedFromDeposit,
+        proratedRent: effectiveProratedRent,
+        proratedExplanation,
+        billingDay,
+        billingDate: billingDay,
+        rentBillingType,
         foodAddon,
         foodPreference,
+        foodDeductionAmount: monthlyFoodDeduction,
         paymentCycle,
         tenantType,
         paySecurityDepositNow,
@@ -800,11 +883,17 @@ export default function AddTenantModal({
 
           {/* TAB 3: Lease & Commercial Terms */}
           {activeTab === 3 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
-                3. Lease Dates, Monthly Rent & Deposit Terms
-              </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div>
+                <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
+                  3. Lease Dates, Monthly Rent & Commercial Terms
+                </h3>
+                <p style={{ fontSize: "12px", color: "#64748B", margin: "2px 0 0 0" }}>
+                  Configure personalized rent, deposit terms, billing cycle, and maintenance deduction policy.
+                </p>
+              </div>
 
+              {/* Dates */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
@@ -817,6 +906,9 @@ export default function AddTenantModal({
                     onChange={(e) => setMoveInDate(e.target.value)}
                     style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
                   />
+                  <div style={{ fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
+                    Move-in day ({moveInDate ? new Date(moveInDate).getDate() : 1}) governs first month proration calculation.
+                  </div>
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
@@ -831,11 +923,15 @@ export default function AddTenantModal({
                 </div>
               </div>
 
+              {/* Financial Inputs: Rent, Deposit, Maintenance */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Monthly Rent (₹) *
-                  </label>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}>
+                      Monthly Rent (₹) *
+                    </label>
+                    <span style={{ fontSize: "10px", color: "#059669", fontWeight: 600 }}>Customizable</span>
+                  </div>
                   <input
                     type="number"
                     required
@@ -845,9 +941,12 @@ export default function AddTenantModal({
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Security Deposit (₹) *
-                  </label>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}>
+                      Security Deposit (₹) *
+                    </label>
+                    <span style={{ fontSize: "10px", color: "#059669", fontWeight: 600 }}>Customizable</span>
+                  </div>
                   <input
                     type="number"
                     required
@@ -858,7 +957,7 @@ export default function AddTenantModal({
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Maintenance Charge (₹)
+                    One-time Maintenance (₹)
                   </label>
                   <input
                     type="number"
@@ -869,19 +968,214 @@ export default function AddTenantModal({
                 </div>
               </div>
 
+              {/* Maintenance Deducted From Security Deposit Toggle (Exact Mobile Feature) */}
+              <div
+                style={{
+                  padding: "14px",
+                  borderRadius: "10px",
+                  border: maintenanceDeductedFromDeposit ? "1px solid #A7F3D0" : "1px solid #E2E8F0",
+                  background: maintenanceDeductedFromDeposit ? "#ECFDF5" : "#F8FAFC",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={maintenanceDeductedFromDeposit}
+                    onChange={(e) => setMaintenanceDeductedFromDeposit(e.target.checked)}
+                    style={{ width: "18px", height: "18px", accentColor: "#059669", marginTop: "2px" }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: "13px", color: "#0F172A", display: "block" }}>
+                      Deduct One-Time Maintenance (₹{maintenanceFee.toLocaleString()}) from Security Deposit Refund at Vacating
+                    </strong>
+                    <p style={{ fontSize: "12px", color: maintenanceDeductedFromDeposit ? "#065F46" : "#64748B", margin: "4px 0 0 0" }}>
+                      {maintenanceDeductedFromDeposit ? (
+                        <>
+                          Full security deposit (₹{securityDeposit.toLocaleString()}) is collected. Maintenance (₹{maintenanceFee.toLocaleString()}) will NOT be added to the first month check-in invoice — it will be deducted from the security deposit refund when tenant vacates. (Refund at exit: ₹{refundableDepositAtVacate.toLocaleString()}).
+                        </>
+                      ) : (
+                        <>
+                          Maintenance (₹{maintenanceFee.toLocaleString()}) is charged upfront as a separate one-time fee on the first month check-in invoice. Security deposit remains 100% refundable.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Billing Cycle & Monthly Due Date Selector (Exact Mobile Feature) */}
+              <div style={{ padding: "16px", border: "1px solid #E2E8F0", borderRadius: "10px", background: "#FFFFFF" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
+                    Monthly Rent Billing Cycle & Due Date
+                  </label>
+                  <span style={{ fontSize: "11px", color: "#64748B" }}>
+                    Invoice Due: <strong>{formatOrdinal(billingDay)} of every month</strong>
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748B", marginBottom: "4px" }}>
+                      Payment Frequency
+                    </label>
+                    <select
+                      value={paymentCycle}
+                      onChange={(e) => setPaymentCycle(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
+                    >
+                      <option value="Daily">Daily</option>
+                      <option value="Weekly">Weekly</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748B", marginBottom: "4px" }}>
+                      Rent Billing Type
+                    </label>
+                    <select
+                      value={rentBillingType}
+                      onChange={(e) => setRentBillingType(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px" }}
+                    >
+                      <option value="Monthly">Monthly Recurring</option>
+                      <option value="Manual">Manual Collection</option>
+                      <option value="Daily">Daily Billing</option>
+                      <option value="Weekly">Weekly Billing</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Day selector pills */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#64748B", marginBottom: "8px" }}>
+                    Select Billing Day of Month:
+                  </label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {[
+                      { day: 1, label: "1st of Month (Standard)" },
+                      { day: 5, label: "5th of Month" },
+                      { day: 10, label: "10th of Month" },
+                      { day: 15, label: "15th of Month" },
+                      {
+                        day: moveInDate ? new Date(moveInDate).getDate() : 1,
+                        label: `Move-in Anniversary (${formatOrdinal(moveInDate ? new Date(moveInDate).getDate() : 1)})`,
+                      },
+                    ].map((opt, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setBillingDay(opt.day)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          border: billingDay === opt.day ? "2px solid #059669" : "1px solid #CBD5E1",
+                          background: billingDay === opt.day ? "#ECFDF5" : "#FFFFFF",
+                          color: billingDay === opt.day ? "#059669" : "#334155",
+                          fontSize: "12px",
+                          fontWeight: billingDay === opt.day ? 700 : 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "12px", color: "#64748B" }}>or Day:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={billingDay}
+                        onChange={(e) => setBillingDay(Math.min(31, Math.max(1, parseInt(e.target.value) || 1)))}
+                        style={{ width: "60px", padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "12px", textAlign: "center", fontWeight: 700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Food Addon & Deduction (Matching Mobile) */}
+              <div style={{ padding: "14px", border: "1px solid #E2E8F0", borderRadius: "10px", background: "#F8FAFC" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
+                  <input
+                    type="checkbox"
+                    checked={foodAddon}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setFoodAddon(checked);
+                      if (!checked && foodDeductionAmount === 0 && monthlyRent > 0) {
+                        setFoodDeductionAmount(Math.round(monthlyRent * 0.1));
+                      }
+                    }}
+                    style={{ width: "16px", height: "16px", accentColor: "#059669" }}
+                  />
+                  Food / Mess Subscription Included
+                </label>
+
+                {foodAddon ? (
+                  <div style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "12px", color: "#64748B" }}>Meal Preference:</span>
+                    {["Both", "Veg", "Non-Veg"].map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setFoodPreference(p)}
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: "6px",
+                          border: foodPreference === p ? "2px solid #059669" : "1px solid #CBD5E1",
+                          background: foodPreference === p ? "#ECFDF5" : "#FFFFFF",
+                          color: foodPreference === p ? "#059669" : "#475569",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ marginTop: "12px", padding: "10px", background: "#FEF3C7", borderRadius: "8px", border: "1px solid #FDE68A" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "#92400E" }}>
+                          Food Excluded — Monthly Rent Deduction
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#B45309" }}>
+                          Deduction will be subtracted from monthly base rent before proration.
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#92400E" }}>Deduct ₹:</span>
+                        <input
+                          type="number"
+                          value={foodDeductionAmount}
+                          onChange={(e) => setFoodDeductionAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                          style={{ width: "100px", padding: "6px 8px", border: "1px solid #F59E0B", borderRadius: "6px", fontSize: "12px", fontWeight: 700 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Lock-in & Notice */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                    Billing Cycle
+                    Lease Duration (Months)
                   </label>
-                  <select
-                    value={paymentCycle}
-                    onChange={(e) => setPaymentCycle(e.target.value)}
+                  <input
+                    type="number"
+                    value={durationMonths}
+                    onChange={(e) => setDurationMonths(e.target.value)}
                     style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
-                  >
-                    <option value="Monthly">Monthly</option>
-                    <option value="Quarterly">Quarterly</option>
-                  </select>
+                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
@@ -905,42 +1199,6 @@ export default function AddTenantModal({
                     style={{ width: "100%", padding: "10px 12px", border: "1px solid #CBD5E1", borderRadius: "8px", fontSize: "13px" }}
                   />
                 </div>
-              </div>
-
-              {/* Food Addon */}
-              <div style={{ padding: "14px", border: "1px solid #E2E8F0", borderRadius: "10px", background: "#F8FAFC" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
-                  <input
-                    type="checkbox"
-                    checked={foodAddon}
-                    onChange={(e) => setFoodAddon(e.target.checked)}
-                    style={{ width: "16px", height: "16px", accentColor: "#059669" }}
-                  />
-                  Food / Mess Subscription Included
-                </label>
-                {foodAddon && (
-                  <div style={{ marginTop: "10px", display: "flex", gap: "10px" }}>
-                    {["Both", "Veg", "Non-Veg"].map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setFoodPreference(p)}
-                        style={{
-                          padding: "6px 14px",
-                          borderRadius: "6px",
-                          border: foodPreference === p ? "2px solid #059669" : "1px solid #CBD5E1",
-                          background: foodPreference === p ? "#ECFDF5" : "#FFFFFF",
-                          color: foodPreference === p ? "#059669" : "#475569",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1094,75 +1352,275 @@ export default function AddTenantModal({
             </div>
           )}
 
-          {/* TAB 5: Bill & Confirmation */}
+          {/* TAB 5: Bill & Confirmation (1:1 Mobile Parity with Flutter _buildBillTab) */}
           {activeTab === 5 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <h3 style={{ fontSize: "15px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
-                5. Commercial Calculation & Move-in Summary
-              </h3>
-
-              {/* Summary Card */}
-              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "18px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-                  <div>
-                    <strong style={{ fontSize: "16px", color: "#0F172A" }}>{fullName || "Resident"}</strong>
-                    <div style={{ fontSize: "12px", color: "#64748B" }}>
-                      {currentProp?.name} • Room {selectedRoomNumber} • Bed {selectedBedNumber}
-                    </div>
-                  </div>
-                  <span style={{ padding: "4px 10px", background: "#ECFDF5", color: "#059669", borderRadius: "6px", fontWeight: 700, fontSize: "12px" }}>
-                    Ready for Check-in
-                  </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                <div>
+                  <h3 style={{ fontSize: "16px", fontWeight: 800, color: "#0F172A", margin: 0 }}>
+                    5. First Month Commercials & Move-in Calculation
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "#64748B", margin: "2px 0 0 0" }}>
+                    Exact transparent breakdown matching OneStay360 mobile business application.
+                  </p>
                 </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px", borderTop: "1px solid #E2E8F0", paddingTop: "12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#64748B" }}>Monthly Base Rent:</span>
-                    <strong style={{ color: "#0F172A" }}>₹{monthlyRent.toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#64748B" }}>Move-in Date:</span>
-                    <span>{moveInDate}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#64748B" }}>Prorated Rent for Current Month:</span>
-                    <strong style={{ color: "#059669" }}>₹{proratedRent.toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#64748B" }}>Security Deposit:</span>
-                    <span>₹{securityDeposit.toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#64748B" }}>One-time Maintenance Fee:</span>
-                    <span>₹{maintenanceFee.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginTop: "14px",
-                    paddingTop: "12px",
-                    borderTop: "2px dashed #CBD5E1",
-                  }}
-                >
-                  <strong style={{ fontSize: "15px", color: "#0F172A" }}>Total Payable at Check-in:</strong>
-                  <strong style={{ fontSize: "20px", color: "#059669" }}>₹{totalDueAtMoveIn.toLocaleString()}</strong>
+                <div style={{ padding: "4px 10px", background: "#ECFDF5", color: "#059669", borderRadius: "6px", fontWeight: 700, fontSize: "12px" }}>
+                  {currentProp?.name} • Room {selectedRoomNumber} • Bed {selectedBedNumber}
                 </div>
               </div>
 
-              {/* Pay Security Deposit Now Toggle */}
-              <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "13px", color: "#334155" }}>
-                <input
-                  type="checkbox"
-                  checked={paySecurityDepositNow}
-                  onChange={(e) => setPaySecurityDepositNow(e.target.checked)}
-                  style={{ width: "16px", height: "16px", accentColor: "#059669" }}
-                />
-                Collect Security Deposit (₹{securityDeposit}) at initial check-in
-              </label>
+              {/* SECTION: First Month Charges & Proration Controls */}
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "18px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>
+                    Prorated Rent for Current Month (₹)
+                  </label>
+
+                  {/* Mode switcher tabs */}
+                  <div style={{ display: "flex", gap: "4px", background: "#F1F5F9", padding: "3px", borderRadius: "8px" }}>
+                    {[
+                      { mode: "auto", label: "Mobile Rule (1-15 / 16-31)" },
+                      { mode: "daily", label: "Daily Prorated" },
+                      { mode: "manual", label: "Manual Edit" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.mode}
+                        type="button"
+                        onClick={() => {
+                          setProratedMode(tab.mode as any);
+                          if (tab.mode === "manual" && !customProratedRent) {
+                            setCustomProratedRent(effectiveProratedRent.toString());
+                          }
+                        }}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          border: "none",
+                          fontSize: "11px",
+                          fontWeight: proratedMode === tab.mode ? 700 : 500,
+                          background: proratedMode === tab.mode ? "#FFFFFF" : "transparent",
+                          color: proratedMode === tab.mode ? "#0F172A" : "#64748B",
+                          cursor: "pointer",
+                          boxShadow: proratedMode === tab.mode ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Prorated Rent Input */}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px" }}>
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", fontWeight: 700, color: "#64748B", fontSize: "14px" }}>₹</span>
+                    <input
+                      type="number"
+                      value={proratedMode === "manual" ? customProratedRent : effectiveProratedRent}
+                      onChange={(e) => {
+                        setProratedMode("manual");
+                        setCustomProratedRent(e.target.value);
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px 10px 28px",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "8px",
+                        fontSize: "16px",
+                        fontWeight: 800,
+                        color: "#0F172A",
+                        background: proratedMode === "manual" ? "#FFFBEB" : "#F8FAFC",
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: "12px", color: "#64748B" }}>
+                    Move-in: <strong>{moveInDate}</strong>
+                  </span>
+                </div>
+
+                {/* Explanation Banner */}
+                <div style={{ padding: "10px 14px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "8px", fontSize: "12px", color: "#1D4ED8", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Info size={16} style={{ flexShrink: 0 }} />
+                  <span>{proratedExplanation}</span>
+                </div>
+
+                {/* Food deduction explanation if applicable */}
+                {!foodAddon && monthlyFoodDeduction > 0 && (
+                  <div style={{ marginTop: "10px", padding: "10px 14px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "8px", fontSize: "12px", color: "#065F46" }}>
+                    <strong>Food Deduction Applied:</strong> Monthly Rent ₹{monthlyRent.toLocaleString()} - Food Deduction ₹{monthlyFoodDeduction.toLocaleString()} = Adjusted Monthly Rent ₹{adjustedMonthlyRent.toLocaleString()}.
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION: Security Deposit & Maintenance Policy */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                {/* Security deposit option */}
+                <div
+                  style={{
+                    padding: "14px",
+                    borderRadius: "10px",
+                    border: paySecurityDepositNow ? "1px solid #A7F3D0" : "1px solid #E2E8F0",
+                    background: paySecurityDepositNow ? "#F0FDF4" : "#F8FAFC",
+                  }}
+                >
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={paySecurityDepositNow}
+                      onChange={(e) => setPaySecurityDepositNow(e.target.checked)}
+                      style={{ width: "16px", height: "16px", accentColor: "#059669", marginTop: "2px" }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: "13px", color: "#0F172A" }}>
+                        Security Deposit: ₹{securityDeposit.toLocaleString()}
+                      </strong>
+                      <div style={{ fontSize: "12px", color: paySecurityDepositNow ? "#065F46" : "#64748B", marginTop: "2px" }}>
+                        {paySecurityDepositNow ? "Collect at initial check-in (Pay Now)" : "Collect later — not added to first month bill"}
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Maintenance status */}
+                <div
+                  style={{
+                    padding: "14px",
+                    borderRadius: "10px",
+                    border: maintenanceDeductedFromDeposit ? "1px solid #FED7AA" : "1px solid #E2E8F0",
+                    background: maintenanceDeductedFromDeposit ? "#FFF7ED" : "#F8FAFC",
+                  }}
+                >
+                  <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={maintenanceDeductedFromDeposit}
+                      onChange={(e) => setMaintenanceDeductedFromDeposit(e.target.checked)}
+                      style={{ width: "16px", height: "16px", accentColor: "#EA580C", marginTop: "2px" }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: "13px", color: "#0F172A" }}>
+                        Deduct Maintenance from Deposit
+                      </strong>
+                      <div style={{ fontSize: "12px", color: maintenanceDeductedFromDeposit ? "#9A3412" : "#64748B", marginTop: "2px" }}>
+                        {maintenanceDeductedFromDeposit
+                          ? `₹${maintenanceFee.toLocaleString()} will be deducted from refund at vacating (₹0 upfront)`
+                          : `₹${maintenanceFee.toLocaleString()} charged upfront as one-time fee`}
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* SECTION: Maintenance Deduction Note */}
+              {maintenanceDeductedFromDeposit && maintenanceFee > 0 && (
+                <div style={{ padding: "12px 16px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "10px", fontSize: "12px", color: "#92400E" }}>
+                  <strong>Vacating Refund Policy:</strong> Full security deposit (₹{securityDeposit.toLocaleString()}) is collected upfront. Maintenance fee (₹{maintenanceFee.toLocaleString()}) will be deducted from the security deposit refund when the tenant vacates. <strong>Net Refund at Move-out: ₹{refundableDepositAtVacate.toLocaleString()}</strong>.
+                </div>
+              )}
+
+              {/* TOTAL FIRST MONTH CHARGE BANNER */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #065F46 0%, #047857 100%)",
+                  borderRadius: "14px",
+                  padding: "20px 24px",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  boxShadow: "0 4px 6px -1px rgba(5, 150, 105, 0.2)",
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", opacity: 0.9, fontWeight: 700 }}>
+                    Total Due at Initial Check-in
+                  </span>
+                  <div style={{ fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>
+                    Recurring monthly due date: <strong>{formatOrdinal(billingDay)} of every month</strong>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "30px", fontWeight: 900, letterSpacing: "-1px" }}>
+                    ₹{totalDueAtMoveIn.toLocaleString("en-IN")}
+                  </div>
+                </div>
+              </div>
+
+              {/* COMPLETE ITEMISED BREAKDOWN CARD (Exact Mobile Parity) */}
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", borderBottom: "1px solid #E2E8F0", paddingBottom: "10px" }}>
+                  <Receipt size={16} style={{ color: "#059669" }} />
+                  <strong style={{ fontSize: "14px", color: "#0F172A" }}>First Month Commercial Breakdown</strong>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#64748B" }}>Base Monthly Rent:</span>
+                    <strong style={{ color: "#0F172A" }}>₹{monthlyRent.toLocaleString()}</strong>
+                  </div>
+
+                  {!foodAddon && monthlyFoodDeduction > 0 && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#DC2626" }}>
+                        <span>Less: Food Deduction (Monthly):</span>
+                        <strong>- ₹{monthlyFoodDeduction.toLocaleString()}</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", color: "#475569" }}>
+                        <span>Adjusted Monthly Rent:</span>
+                        <strong>₹{adjustedMonthlyRent.toLocaleString()}</strong>
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <span style={{ color: "#64748B" }}>Prorated Rent (Move-in Month):</span>
+                      <div style={{ fontSize: "11px", color: "#059669", fontStyle: "italic" }}>
+                        {proratedExplanation}
+                      </div>
+                    </div>
+                    <strong style={{ color: "#059669", fontSize: "14px" }}>₹{effectiveProratedRent.toLocaleString()}</strong>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <div>
+                      <span style={{ color: "#64748B" }}>Security Deposit:</span>
+                      {!paySecurityDepositNow && (
+                        <span style={{ fontSize: "11px", color: "#EA580C", marginLeft: "6px" }}>(Pay later)</span>
+                      )}
+                    </div>
+                    <strong style={{ color: "#0F172A" }}>
+                      {paySecurityDepositNow ? `₹${securityDeposit.toLocaleString()}` : "₹0 (Pay later)"}
+                    </strong>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <div>
+                      <span style={{ color: "#64748B" }}>One-time Maintenance Fee:</span>
+                      {maintenanceDeductedFromDeposit ? (
+                        <div style={{ fontSize: "11px", color: "#D97706", fontStyle: "italic" }}>
+                          ₹{maintenanceFee.toLocaleString()} deducted from deposit refund when tenant vacates
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "11px", color: "#64748B" }}>Charged upfront</div>
+                      )}
+                    </div>
+                    <strong style={{ color: "#0F172A" }}>
+                      {maintenanceDeductedFromDeposit ? "₹0 (Deducted at exit)" : `₹${maintenanceFee.toLocaleString()}`}
+                    </strong>
+                  </div>
+
+                  <div style={{ borderTop: "2px dashed #CBD5E1", paddingTop: "10px", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <strong style={{ fontSize: "14px", color: "#0F172A" }}>Total Check-in Payable:</strong>
+                    <strong style={{ fontSize: "18px", color: "#059669" }}>₹{totalDueAtMoveIn.toLocaleString("en-IN")}</strong>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#64748B", paddingTop: "4px" }}>
+                    <span>Refundable Deposit on Vacating:</span>
+                    <strong style={{ color: "#0F172A" }}>₹{refundableDepositAtVacate.toLocaleString("en-IN")}</strong>
+                  </div>
+                </div>
+              </div>
 
               <div style={{ padding: "12px 16px", background: "#EFF6FF", borderRadius: "10px", fontSize: "12px", color: "#1E40AF" }}>
                 Upon confirmation, the selected bed will be marked occupied in Firestore, an active stay record will be registered under the resident, and a digital check-in confirmation will be generated.

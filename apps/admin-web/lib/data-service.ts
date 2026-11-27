@@ -41,6 +41,7 @@ export interface PropertyData {
     triple?: number;
     securityDeposit?: number;
     oneTimeMaintenance?: number;
+    maintenanceDeductedFromDeposit?: boolean;
     maxSharing?: number;
     sharing?: Array<{ sharing: number; ac: number; nonAc: number }>;
   };
@@ -723,9 +724,15 @@ export interface NewTenantInput {
   monthlyRent: number;
   securityDeposit: number;
   maintenanceFee: number;
+  maintenanceDeductedFromDeposit?: boolean;
   proratedRent?: number;
+  proratedExplanation?: string;
+  billingDay?: number;
+  billingDate?: number;
+  rentBillingType?: string;
   foodAddon: boolean;
   foodPreference?: string;
+  foodDeductionAmount?: number;
   paymentCycle: string;
   tenantType: string;
   paySecurityDepositNow: boolean;
@@ -742,6 +749,14 @@ export async function createTenantWithStay(
   const tenantId = await generateSequentialTenantId();
   const stayId = `stay_${Date.now()}`;
   const now = serverTimestamp();
+
+  const isMaintenanceDeducted = input.maintenanceDeductedFromDeposit ?? true;
+  const billingDayNumber = input.billingDay ?? (input.billingDate ?? 1);
+  const firstMonthRentCharged = input.proratedRent !== undefined ? input.proratedRent : input.monthlyRent;
+  const firstMonthPayable =
+    firstMonthRentCharged +
+    (input.paySecurityDepositNow ? input.securityDeposit : 0) +
+    (isMaintenanceDeducted ? 0 : input.maintenanceFee);
 
   const tenantPayload = {
     id: tenantId,
@@ -771,18 +786,41 @@ export async function createTenantWithStay(
     roomNumber: input.roomNumber,
     floor: input.floor,
     bedId: input.bedNumber,
+    bedNumber: input.bedNumber,
     monthlyRent: input.monthlyRent,
     securityDeposit: input.securityDeposit,
     maintenanceFee: input.maintenanceFee,
+    maintenanceDeductedFromDeposit: isMaintenanceDeducted,
     proratedRent: input.proratedRent || 0,
+    proratedExplanation: input.proratedExplanation || "",
+    billingDay: billingDayNumber,
+    billingDate: billingDayNumber,
+    rentBillingType: input.rentBillingType || "Monthly",
     checkInDate: input.moveInDate,
     checkOutDate: input.moveOutDate || null,
     moveInDate: input.moveInDate,
     status: "active",
     foodAddon: input.foodAddon,
     foodPreference: input.foodPreference || "Both",
+    foodDeduction: input.foodDeductionAmount || 0,
     paymentCycle: input.paymentCycle,
     tenantType: input.tenantType,
+    paySecurityDepositNow: input.paySecurityDepositNow,
+    totalFirstMonthPayable: firstMonthPayable,
+    additionalInfo: {
+      depositAmount: input.securityDeposit,
+      maintenanceAmount: input.maintenanceFee,
+      maintenanceDeductedFromDeposit: isMaintenanceDeducted,
+      foodAddon: input.foodAddon,
+      foodDeduction: input.foodDeductionAmount || 0,
+      proratedRent: input.proratedRent || 0,
+      proratedExplanation: input.proratedExplanation || "",
+      totalFirstMonth: firstMonthPayable,
+      paymentMode: "manual_cash_or_upi",
+      billingDate: billingDayNumber,
+      billingDay: billingDayNumber,
+      rentBillingType: input.rentBillingType || "Monthly",
+    },
     businessId,
     createdAt: now,
     updatedAt: now,
@@ -804,11 +842,20 @@ export async function createTenantWithStay(
     roomId: input.roomId,
     roomNumber: input.roomNumber,
     bedId: input.bedNumber,
+    bedNumber: input.bedNumber,
     moveInDate: input.moveInDate,
     moveOutDate: input.moveOutDate || null,
     monthlyRent: input.monthlyRent,
     securityDeposit: input.securityDeposit,
     maintenanceFee: input.maintenanceFee,
+    maintenanceDeductedFromDeposit: isMaintenanceDeducted,
+    proratedRent: input.proratedRent || 0,
+    billingDay: billingDayNumber,
+    billingDate: billingDayNumber,
+    rentBillingType: input.rentBillingType || "Monthly",
+    foodAddon: input.foodAddon,
+    foodDeduction: input.foodDeductionAmount || 0,
+    totalFirstMonthPayable: firstMonthPayable,
     status: "active",
     businessId,
     createdAt: now,
